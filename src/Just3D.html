@@ -422,6 +422,18 @@ function weldApply(m,map,pos){if(m.v.length>=50000){const V=m.v.slice(),mm=new I
    const g=f.map(i=>mm[i]>=0?mm[i]:i),h=g.filter((i,k)=>i!==g[(k+1)%g.length]);if(h.length>=3&&new Set(h).size>=3)F.push(h)}return{v:V,f:F}}
  const V=m.v.map(v=>v.slice());pos.forEach((q,i)=>{V[i]=q});const F=[];
  m.f.forEach(f=>{const g=f.map(i=>map.has(i)?map.get(i):i),h=g.filter((i,k)=>i!==g[(k+1)%g.length]);if(h.length>=3&&new Set(h).size>=3)F.push(h)});return{v:V,f:F}}
+/* Fill hole: every open border (a ring of edges that has polygons on one side only) becomes one new polygon. n.fl = points picked by the user: only the holes touching them are filled (none picked = all holes). */
+/* Shift: moves every point by the same amount (used to put the object's centre on its own middle line, so symmetry works after Mirror) */
+FOPS.Shift={p:{x:[0,-50,50,.001],y:[0,-50,50,.001],z:[0,-50,50,.001]},fn:(m,p)=>(p.x||p.y||p.z)?{v:m.v.map(v=>[v[0]+p.x,v[1]+p.y,v[2]+p.z]),f:m.f}:m};
+FOPS.FillHole={p:{},fn:(m,p,n)=>{const rep=weldRep(m),R=i=>rep[i]>=0?rep[i]:i,has=new Set(),E=[];
+ m.f.forEach(f=>{const L=f.length;for(let k=0;k<L;k++){const a=R(f[k]),b=R(f[(k+1)%L]);if(a!==b)has.add(a+'_'+b)}});
+ m.f.forEach(f=>{const L=f.length;for(let k=0;k<L;k++){const a=R(f[k]),b=R(f[(k+1)%L]);if(a!==b&&!has.has(b+'_'+a))E.push([b,a])}});
+ if(!E.length)return m;const nx=new Map();E.forEach(([a,b])=>{if(!nx.has(a))nx.set(a,[]);nx.get(a).push(b)});
+ const want=n.fl&&n.fl.length?new Set(n.fl.map(R)):null,used=new Set(),F=m.f.slice(),src=m.f.map((_,i)=>i);
+ E.forEach(([a0,b0])=>{const k0=a0+'_'+b0;if(used.has(k0))return;const loop=[a0];used.add(k0);let cur=b0,ok=false;
+  for(let g=0;g<100000;g++){if(cur===a0){ok=true;break}loop.push(cur);const nb=(nx.get(cur)||[]).filter(t=>!used.has(cur+'_'+t));if(!nb.length)break;const t=nb[0];used.add(cur+'_'+t);cur=t}
+  if(!ok||loop.length<3||new Set(loop).size!==loop.length)return;if(want&&!loop.some(v=>want.has(v)))return;F.push(loop);src.push(-1)});
+ return F.length===m.f.length?m:{v:m.v,f:F,src}}};
 FOPS.Weld={p:{distance:[0,0,3,.01]},fn:(m,p,n)=>{const G=weldGroups(m,n.fl||[]);if(G.length<2)return m;const d=p.distance,P=G.map(g=>m.v[g[0]]),par=G.map((_,i)=>i),fd=i=>par[i]===i?i:(par[i]=fd(par[i]));
  if(d>0){for(let a=0;a<G.length;a++)for(let b=a+1;b<G.length;b++)if(Math.hypot(P[a][0]-P[b][0],P[a][1]-P[b][1],P[a][2]-P[b][2])<=d)par[fd(b)]=fd(a)}else for(let a=1;a<G.length;a++)par[fd(a)]=fd(0);
  const C=new Map();G.forEach((g,i)=>{const r=fd(i);(C.get(r)||C.set(r,[]).get(r)).push(i)});const map=new Map(),pos=new Map();
@@ -1828,9 +1840,10 @@ const CMDS=[
  {g:'Render',l:'Render 2K (GPU)',f:()=>renderGPU()},
  {g:'Render',l:'Ray trace 2K (CPU)',f:()=>renderRT()},
  {g:'Render',l:'Show last render',f:()=>showRender()},
+ {g:'Modeling',l:'Fill hole',en:need,f:fillHole},
  {g:'Modeling',l:'Clusters',en:()=>!!objs[sel]&&editMode&&(selPts.size>0||selEdges.size>0),f:makeCluster},
- {g:'Object',l:'Hide selected',k:'Ctrl+H',en:()=>!!objs[sel]||osel.size>0,f:hideSel},
- {g:'Object',l:'Unhide all',k:'Ctrl+Shift+H',en:()=>objs.some(o=>o.hid||(o.hf&&Object.keys(o.hf).length)),f:unhideAll},
+ {g:'Object',l:'Hide selected',k:'H',k2:'Ctrl+H',en:()=>!!objs[sel]||osel.size>0,f:hideSel},
+ {g:'Object',l:'Unhide all',k:'U',k2:'Ctrl+Shift+H',en:()=>objs.some(o=>o.hid||(o.hf&&Object.keys(o.hf).length)),f:unhideAll},
  {g:'Render',l:'Save last render',f:()=>saveRender()},
  {g:'View',l:'Toggle grid',k:'G',en:()=>!sculptOn,f:()=>{gridOn=!gridOn;draw()},on:()=>gridOn},
  {g:'View',l:'Toggle GPU rendering',f:()=>setGpu(!gpuOn),on:()=>gpuOn&&!!GL},
@@ -1889,7 +1902,7 @@ const CMDS=[
  {g:'Sculpting',l:'Larger brush',k:']',f:()=>{sSize=Math.min(200,sSize+10);syncShelf();draw()}},
  {g:'Sculpting',l:'Add detail (subdivide)',k:'D',en:need,f:addDetail},
  {g:'Sculpting',l:'Reset sculpt',en:()=>{const en=editNode(objs[sel]);return !!en&&Object.keys(en.off).length>0},f:resetEdits},
- {g:'File',l:'Undo',k:'U',k2:'Ctrl+Z',f:undo},
+ {g:'File',l:'Undo',k:'Ctrl+Z',f:undo},
  {g:'File',l:'Redo',k:'Y',k2:'Ctrl+Shift+Z',k3:'Ctrl+Y',f:redo},
  {g:'File',l:'Save or load scene',k:'Ctrl+Shift+O',f:openScene},
  {g:'File',l:'Open file',k:'Ctrl+L',k2:'Ctrl+O',f:openFile},
@@ -2613,7 +2626,7 @@ const SHELVES=[
  {n:'Basic Modeling Tools',rows:[
   {n:'Primitives',items:[{c:'Add cube',t:'Cube',ic:'cube'},{c:'Add sphere',t:'Sphere',ic:'sphere'},{c:'Add torus',t:'Torus',ic:'torus'},{c:'Add trapezoid',t:'Trapezoid',ic:'trap'},{c:'Add teapot',t:'Teapot',ic:'teapot'},{c:'Add tree',t:'Tree',ic:'tree'}]},
   {n:'Transform and scene',items:[{gl:'Tools'},{c:'Select'},{c:'Move',ic:'move'},{c:'Rotate',ic:'rotate'},{c:'Scale',ic:'scale'},{c:'Toggle grid',t:'Grid',ic:'grid'},{sp:1},{gl:'Component'},{c:'Object mode',t:'Object'},{c:'Points',ic:'points'},{c:'Edges',ic:'edges'},{c:'Faces',ic:'faces'},{c:'Clusters',t:'Clusters'},{sp:1},{gl:'Pivot'},{c:'Center pivot',t:'Center Pivot'},{c:'Center to object',t:'Center to Object'},{sp:1},{gl:'Axis lock'},{c:'Lock to X axis',t:'X',ic:'axX'},{c:'Lock to Y axis',t:'Y',ic:'axY'},{c:'Lock to Z axis',t:'Z',ic:'axZ'},{c:'World (free move)',t:'World',ic:'world'},{sp:1},{gl:'Scene'},{c:'Hide selected',t:'Hide'},{c:'Unhide all',t:'Unhide'},{c:'Remove object',t:'Remove object'},{c:'Clear selection',t:'Clear'},{c:'Undo'},{c:'Redo'},{c:'Save file',t:'Save'},{c:'Open file',t:'Load'}]},
-  {n:'Modeling tools',items:[{c:'Loop cut',t:'Loop Cut'},{c:'Knife Area',t:'Knife Area',ic:'karea'},{c:'Add loop edge',t:'Add Loop Edge',ic:'ledge'},{c:'Add vertex',t:'Add Vertex',ic:'points'},{c:'Group weld',t:'Group Weld',ic:'bullseye'},{c:'Target weld',t:'Target Weld',ic:'bullseye'},{c:'Extrude faces',t:'Extrude'},{c:'Bevel faces or edges',t:'Bevel'},{c:'Invert selection',t:'Invert'},{c:'Select edge loop',t:'Loop'},{c:'Select edge ring',t:'Ring'},{c:'Mirror',t:'Mirror'},{c:'Symmetrize',t:'Symmetrize'},{c:'Smooth surface',t:'Smooth'},{c:'Freeze (delete history)',t:'Freeze',ic:'freeze'},{c:'Merge'},{sp:1},{c:'Duplicate',ic:'dup3'},{sp:1},{c:'World Draw',t:'World Draw',ic:'draw'},{c:'Object Draw',t:'Object Draw',ic:'odraw'},{c:'Free Draw',t:'Free Draw',ic:'fdraw'},{sp:1},{gl:'Soft select'},{c:'Soft select',t:'Soft Select',ic:'soft'},{soft:'mode'},{soft:'curve'},{soft:'r'}]},
+  {n:'Modeling tools',items:[{c:'Loop cut',t:'Loop Cut'},{c:'Knife Area',t:'Knife Area',ic:'karea'},{c:'Add loop edge',t:'Add Loop Edge',ic:'ledge'},{c:'Add vertex',t:'Add Vertex',ic:'points'},{c:'Group weld',t:'Group Weld',ic:'bullseye'},{c:'Target weld',t:'Target Weld',ic:'bullseye'},{c:'Extrude faces',t:'Extrude'},{c:'Bevel faces or edges',t:'Bevel'},{c:'Fill hole',t:'Fill Hole'},{c:'Invert selection',t:'Invert'},{c:'Select edge loop',t:'Loop'},{c:'Select edge ring',t:'Ring'},{c:'Mirror',t:'Mirror'},{c:'Symmetrize',t:'Symmetrize'},{c:'Smooth surface',t:'Smooth'},{c:'Freeze (delete history)',t:'Freeze',ic:'freeze'},{c:'Merge'},{sp:1},{c:'Duplicate',ic:'dup3'},{sp:1},{c:'World Draw',t:'World Draw',ic:'draw'},{c:'Object Draw',t:'Object Draw',ic:'odraw'},{c:'Free Draw',t:'Free Draw',ic:'fdraw'},{sp:1},{gl:'Soft select'},{c:'Soft select',t:'Soft Select',ic:'soft'},{soft:'mode'},{soft:'curve'},{soft:'r'}]},
   {n:'Rotoscope',items:[{c:'Rotoscope: load image',t:'Load image…'},{c:'Rotoscope: move and scale',t:'Move / Scale'},{c:'Rotoscope: show or hide',t:'Visible'},{c:'Rotoscope: remove image',t:'Remove'},{roto:'op'},{roto:'size'},{roto:'x'},{roto:'y'},{rname:1}]},
   {n:'File',items:[{c:'New file',t:'New File'},{c:'Open file',t:'Open File'},{c:'Save file',t:'Save'},{c:'Save file as',t:'Save As'},{fname:1},{c:'Export file',t:'Export File'},{c:'Create new model',t:'Create New Model'},{sp:1},{c:'Record video (MP4)',t:'Record',id:'rec'},{sp:1},{c:'Object wireframe',t:'Wireframe'},{c:'Object shaded',t:'Shaded'},{c:'Object wireframe + shaded',t:'Wireframe + Shaded'},{vp:'op'}]}]},
  {n:'Coloring and Rendering',rows:[
@@ -2894,6 +2907,12 @@ function makeCluster(){const o=objs[sel];if(!o){toast('Select an object first');
 function selectCluster(ci,add){const o=objs[sel],c=o&&o.cl&&o.cl[ci];if(!c)return;if(!(editMode&&sub==='face'))setTool('face');if(!add)selPts.clear();const nf=evaluate(o).f.length;c.f.forEach(i=>{if(i<nf)selPts.add(i)});camSel=-1;all();toast(c.name+': '+c.f.length+' polygon(s) selected')}
 document.addEventListener('click',e=>{const x=e.target.closest&&e.target.closest('[data-cld]');if(x){e.stopPropagation();const o=objs[sel];if(o&&o.cl){o.cl.splice(+x.dataset.cld,1);all();commit()}return}const r=e.target.closest&&e.target.closest('[data-cl]');if(r)selectCluster(+r.dataset.cl,e.shiftKey||e.ctrlKey||e.metaKey)});
 document.addEventListener('dblclick',e=>{const r=e.target.closest&&e.target.closest('[data-cl]');if(!r)return;const o=objs[sel],c=o&&o.cl&&o.cl[+r.dataset.cl];if(!c)return;const nm=prompt('Cluster name',c.name);if(nm&&nm.trim()){c.name=nm.trim().slice(0,40);all();commit()}});
+function fillHole(){const o=objs[sel];if(!o){toast('Select an object first');return}const en=editNode(o),m=evaluate(o);
+ const fl=editMode&&en&&en.rep?[...(sub==='face'?facePts(en):sub==='edge'&&selEdges.size?new Set([...selEdges].flatMap(k=>k.split('_').map(Number))):selPts)]:[];
+ const nn=mk('FillHole');nn.fl=fl.length?fl:null;const test=TY.FillHole.fn(m,nn.p,nn),added=test.f.length-m.f.length;
+ if(added<=0){toast(fl.length?'No open hole touches the selection. Select points or edges on the rim of a hole (or select nothing to fill every hole).':'This model has no open holes to fill.');return}
+ keepFaceData(o,()=>{placeNode(o,nn);dirtyFrom(o,o.nodes.indexOf(nn))});selPts.clear();selEdges.clear();ringPrev=null;all();commit();
+ toast('Filled '+added+' hole'+(added>1?'s':'')+' with new polygons. Ctrl+Z undoes it; delete the FillHole card to remove them.')}
 function hideSel(){const o=objs[sel];
  if(editMode&&o&&(selPts.size||selEdges.size)){const en=editNode(o),m=evaluate(o),rep=en&&en.rep;if(!o.hf)o.hf={};const F=[];
   if(sub==='face')selPts.forEach(fi=>{if(m.f[fi])F.push(fi)});
@@ -2958,14 +2977,22 @@ function symPoints(quiet){const o=objs[sel];if(!o){toast('Select an object first
  const side=['left','right'][sg*(r[ax]>=0?1:-1)>0?1:0],other=side==='left'?'right':'left';
  const msg='Point moves on the '+side+' side (as seen in this view) were copied to the '+other+' side, across the '+'XYZ'[ax]+' axis'+(miss?'. '+miss+' moved point'+(miss>1?'s have':' has')+' no matching point on the other side, so '+(miss>1?'they were':'it was')+' left alone':'')+'. ';if(!quiet)toast('Symmetrize: '+msg+'Ctrl+Z undoes it.');return msg}
 /* Symmetrize button: a switch. Clicking it on copies the moves already made, then every point you move (or sculpt, extrude, cut...) is repeated on the other side until you click it off. Left/right always follows the viewport you are working in. */
+/* Symmetry mirrors across the object's own centre lines. If the model's left/right (or front/back) middle is not at the object's centre, for example after Mirror placed the copy against the side, the object's centre is moved onto the model's middle first (the model does not move on screen). */
+function symCenter(o){const m=evaluate(o),used=new Set(m.f.flat());if(!used.size)return false;const mn=[1e9,1e9,1e9],mx=[-1e9,-1e9,-1e9];used.forEach(i=>{const v=m.v[i];for(let k=0;k<3;k++){if(v[k]<mn[k])mn[k]=v[k];if(v[k]>mx[k])mx[k]=v[k]}});
+ const c=[0,1,2].map(k=>(mn[k]+mx[k])/2),sz=Math.max(mx[0]-mn[0],mx[1]-mn[1],mx[2]-mn[2])||1,q=sz*1e-3,key=v=>v.map(t=>Math.round(t/q)).join(','),K=new Set();used.forEach(i=>K.add(key(m.v[i])));
+ /* only when the model really is symmetric about its middle and not about the centre (a half model being built out from the centre stays as it is) */
+ const score=(a,pl)=>{let n=0;used.forEach(i=>{const w=m.v[i].slice();w[a]=2*pl-w[a];if(K.has(key(w)))n++});return n},need=used.size*.6,pick=a=>Math.abs(c[a])>sz*1e-3&&score(a,c[a])>=need&&score(a,0)<need?c[a]:0;
+ const dx=pick(0),dz=pick(2);if(!dx&&!dz)return false;
+ const nn=mk('Shift');nn.p.x=-dx;nn.p.z=-dz;const L=o.nodes.length-1,last=o.nodes[L];if(last.type==='Edit'){o.nodes.splice(L,0,nn);dirtyFrom(o,L)}else{o.nodes.push(nn);dirtyFrom(o,o.nodes.length-1)}
+ const w=mulv(mulM(rotMat(o.rot),diag(o.sc||[1,1,1])),[dx,0,dz]);o.pos=o.pos.map((v,k)=>+(v+w[k]).toFixed(5));evaluate(o);return true}
 function symSwitch(){const o=objs[sel];if(!o){toast('Select an object first');return}
  if(symEdit&&symView){symEdit=false;symView=false;sym4=false;all();toast('Symmetrize off. Moves are no longer copied to the other side.');return}
- const msg=symPoints(true);sym4=false;symView=true;symEdit=true;if(!editMode)setTool('pt');all();
- toast('Symmetrize on. '+(msg||'')+'Every point you move now is copied to the other side (left/right as seen in the viewport you work in) until you click Symmetrize again.')}
+ const moved=symCenter(o);const msg=symPoints(true);sym4=false;symView=true;symEdit=true;if(!editMode)setTool('pt');all();
+ toast('Symmetrize on. '+(msg||'')+'Every point you move now is copied to the other side (left/right as seen in the viewport you work in) until you click Symmetrize again.'+(moved?' (The object\'s centre was moved onto the model\'s middle line so both sides match.)':''))}
 function sym4Toggle(){const o=objs[sel];if(!o)return;
  if(symEdit&&sym4){symEdit=false;sym4=false;symView=false;symAx=0;all();toast('Symmetrize off. New edits are no longer repeated on the other sides.');return}
  /* first mirror the object left to right (or right to left): whichever side has the cuts and shape changes is copied onto the side that lacks them */
- symEdit=true;sym4=true;symView=false;symAx=0;const r=symSide(o,0);let msg;
+ symCenter(o);symEdit=true;sym4=true;symView=false;symAx=0;const r=symSide(o,0);let msg;
  if(r.why==='none')msg='Both sides already match, so nothing needed copying. ';else{symmetrize();msg=symWhy(r,0)}
  if(!editMode)setTool('face');all();
  toast('Symmetrize on. '+msg+'Every edit you make now (move, rotate, scale, sculpt, loop cut, extrude, bevel, delete, paint) is copied left to right, right to left, front to back and back to front. Click Symmetrize again to turn it off.')}

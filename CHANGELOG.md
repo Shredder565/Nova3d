@@ -4,6 +4,11 @@ Newest first. Version numbers are the published build numbers of NOVA 3D (former
 
 > Versions 1–67 were built over many early steps and per-version numbers were not recorded, so they are grouped at the bottom. Every version from v68 on is listed individually.
 
+## v184 — Fill Hole, H/U keys, Symmetrize fix
+- **New Fill Hole button** (Modeling tools, after Bevel). Select points or edges on the rim of a hole (or a face next to it) and press Fill Hole: the hole is closed with a new polygon. With nothing selected, every open hole in the model is filled. Ctrl+Z undoes it; the new polygons are a FillHole card you can delete.
+- **H hides, U unhides.** H hides the selected objects (or, in Points/Edges/Faces mode, the highlighted part); U shows everything hidden again. Undo is now Ctrl+Z only (U used to undo too).
+- **Symmetrize fix:** after Mirror (which places the copy against the object's side), the model's middle was no longer at the object's centre, so Symmetrize found no matching points and seemed to do nothing, in any view. Symmetrize now moves the object's centre onto the model's middle first (the model does not move on screen), then mirrors as usual. A half model being built out from the centre is left as it is.
+
 ## v183 — Fewer false virus alarms
 Some virus scanners started flagging NOVA3D.exe as a "trojan". NOVA 3D contains nothing harmful; the alarms are false positives caused by things that look like what malware does. This version removes those triggers:
 - **The shortcut maker script is gone.** Create-NOVA3D-shortcuts.cmd ran PowerShell with "-ExecutionPolicy Bypass" and wrote shortcuts into the Start menu, a pattern scanners strongly associate with malware. To make an icon now: right-click NOVA3D-vNNN.exe > Pin to Start / Pin to taskbar, or Send to > Desktop (create shortcut) (README.txt explains it).
