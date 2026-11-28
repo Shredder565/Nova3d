@@ -4,6 +4,9 @@ Newest first. Version numbers are the published build numbers of NOVA 3D (former
 
 > Versions 1–67 were built over many early steps and per-version numbers were not recorded, so they are grouped at the bottom. Every version from v68 on is listed individually.
 
+## v192 — Mirror rebuilds a half model around its middle
+- Fixed: after deleting half of a model and pressing **Mirror**, the copy was placed on the wrong side (against the far edge), so the model's middle was no longer on the X centre line and **Symmetry: Object X** found nothing to mirror. Mirror now puts the copy on the open, cut side, so the model is whole again around its middle and Object X symmetry works straight away. Models without an open edge mirror as before.
+
 ## v191 — Symmetry menu like Maya
 - **New Symmetry menu in the top bar** (next to Record), with Maya's choices: **Off, Object X, Object Y, Object Z, World X, World Y, World Z, Topology** (plus NOVA's **View left/right**, the Symmetrize button's mode).
   - *Object X/Y/Z:* edits are mirrored across the object's own centre plane.

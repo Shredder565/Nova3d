@@ -3033,7 +3033,11 @@ function mirrorObj(){const o=objs[sel];if(!o)return;const ax=axisK!==null?axisK:
  c.pos=o.pos.slice();c.pos[ax]=-c.pos[ax];c.rot=o.rot.slice();for(let k=0;k<3;k++)if(k!==ax)c.rot[k]=-c.rot[k];
  const nn=mk('Reflect');nn.p.axis=ax;c.nodes.push(nn);dirtyFrom(c,c.nodes.length-1);selPts.clear();selEdges.clear();
  all();toast('Mirrored copy "'+c.name+'" made across the world '+'XYZ'[ax]+' plane'+(Math.abs(o.pos[ax])<1e-6?'. The object sits on that plane, so move the original to see both.':'. Press X, Y or Z first to choose another plane.'))}
-function mirrorGeo(){const o=objs[sel];if(!o)return;const ax=axisK!==null?axisK:0;const nn=mk('Mirror');nn.p.axis=ax;insertNodeKeepColors(o,nn);dirtyFrom(o,o.nodes.indexOf(nn));
+/* which way to mirror: toward the open side (the cut edge of a half model), so a half model is made whole again around its middle */
+function mirrorDir(o,ax){const m=evaluate(o),rep=weldRep(m),R=i=>rep[i]>=0?rep[i]:i,E=new Set();m.f.forEach(f=>f.forEach((a,k)=>E.add(R(a)+'_'+R(f[(k+1)%f.length]))));
+ let mn=1e9,mx=-1e9;new Set(m.f.flat()).forEach(i=>{mn=Math.min(mn,m.v[i][ax]);mx=Math.max(mx,m.v[i][ax])});let s=0,n=0;
+ E.forEach(k=>{const[a,b]=k.split('_');if(!E.has(b+'_'+a)){s+=m.v[+a][ax];n++}});if(!n)return 1;const c=s/n;return Math.abs(c-mn)<Math.abs(c-mx)?-1:1}
+function mirrorGeo(){const o=objs[sel];if(!o)return;const ax=axisK!==null?axisK:0;const nn=mk('Mirror');nn.p.axis=ax;nn.p.dir=mirrorDir(o,ax);insertNodeKeepColors(o,nn);dirtyFrom(o,o.nodes.indexOf(nn));
  selPts.clear();selEdges.clear();ringPrev=null;all();toast('Mirrored across '+'XYZ'[ax]+' (like Maya: the copy sits against the side of the bounding box and the border points are merged into one piece). In the Mirror card: axis, direction (+/-), position (0 bounding box, 1 object, 2 world), offset, merge and threshold. Press X, Y or Z first to pick the axis.')}
 /* Which side of the plane was modelled? Compares every point with its mirror image (measured on the shape before manual point edits): the side with more points that have no partner on the other side got the loop cuts, knife cuts or extrusions, so that side is kept and cloned. If the topology is the same on both sides, the side with the larger point edits wins; with no information the positive side is kept. Returns {dir, why}. */
 function symSide(o,ax){const m=evaluate(o),last=o.nodes[o.nodes.length-1],en=last&&last.type==='Edit'?last:null,off=en&&en.off||{},rep=en&&en.rep,big=m.v.length>=50000;
