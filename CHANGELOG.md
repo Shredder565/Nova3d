@@ -4,6 +4,9 @@ Newest first. Version numbers are the published build numbers of NOVA 3D (former
 
 > Versions 1–67 were built over many early steps and per-version numbers were not recorded, so they are grouped at the bottom. Every version from v68 on is listed individually.
 
+## v186 — Knife Area and Group Weld back on the shelf
+- **Knife Area** and **Group Weld** are back on the Modeling tools shelf, in the Tools group after Multi-Cut.
+
 ## v185 — Modeling and transform tools rebuilt the Maya way
 Studied from Maya 2026's Poly Modeling shelf and Move/Rotate/Scale tools.
 - **Modeling tools shelf rebuilt to match Maya.** Only Free Draw and Soft Select were kept from the old shelf; everything else is new or redone, in Maya's order:
