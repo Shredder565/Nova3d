@@ -922,6 +922,8 @@ function draw(){
     const sl=Math.hypot(tip[0]-ps[0],tip[1]-ps[1]);if(sl<24){/* this axis points at (or away from) the camera: show it as a short diagonal arrow so all three axes are always visible and grabbable */tip[0]=ps[0]-.707*38;tip[1]=ps[1]+.707*38}
     return{tip,ring,ez:view(e[0],e[1],e[2])[2],stub:sl<24}});
    draw.gz={px:ps[0],py:ps[1],L,ax,zd:ortho?dist:pv[2]+dist};
+   /* Maya-style plane handles: a small square between two axes moves in that plane (coloured by the axis it does not move along) */
+   if(xe()==='move'){draw.gz.pl=[[1,2],[0,2],[0,1]].map(([a,b],n)=>{const A=ax[a],B=ax[b];if(A.stub||B.stub)return null;const c=[ps[0]+(A.tip[0]-ps[0])*.32+(B.tip[0]-ps[0])*.32,ps[1]+(A.tip[1]-ps[1])*.32+(B.tip[1]-ps[1])*.32];g.globalAlpha=.75;g.fillStyle=cols[n];g.fillRect(c[0]-6,c[1]-6,12,12);g.globalAlpha=1;g.strokeStyle=drag&&drag.gz&&drag.gz.p===n?'#fff':'rgba(0,0,0,.5)';g.lineWidth=1;g.strokeRect(c[0]-6,c[1]-6,12,12);return{c,a,b}})}
    ax.forEach((A,k)=>{g.strokeStyle=cols[k];g.fillStyle=cols[k];g.lineWidth=drag&&drag.gz&&drag.gz.k===k?4.5:2.5;
     if(xe()==='scale'){g.beginPath();g.moveTo(ps[0],ps[1]);g.lineTo(A.tip[0],A.tip[1]);g.stroke();g.fillRect(A.tip[0]-5,A.tip[1]-5,10,10)}
     else if(xe()==='move'){g.beginPath();g.moveTo(ps[0],ps[1]);g.lineTo(A.tip[0],A.tip[1]);g.stroke();
@@ -1057,13 +1059,13 @@ function placeNode(o,nn){const L=o.nodes.length-1,last=o.nodes[L];if(last.type==
 /* Face colours, clusters and hidden faces are stored per face of the finished model. faceBase traces every finished face back through the nodes to the face it came from, so when a node is added, removed, switched off or changed, each face keeps the colour (and cluster) of the face it came from. */
 function faceBase(o){let prev=null,map=null;o.nodes.forEach((n,ni)=>{const out=n.out;if(!out)return;if(ni===0||!map){map=out.f.map((_,k)=>'b'+k);prev=out;return}
   if(out===prev)return;if(out.src&&out.src.length===out.f.length)map=out.src.map(s=>map[s]!==undefined?map[s]:'n'+ni+':'+s);else if(out.f.length!==prev.f.length)map=out.f.map((_,k)=>'n'+ni+':'+k);prev=out});return map||[]}
-function keepFaceData(o,change){const has=x=>x&&Object.keys(x).length;if(!(has(o.fc)||has(o.hf)||(o.cl&&o.cl.length))){change();return}
- let m0;try{m0=evaluate(o)}catch(_){change();return}if(m0.f.length>400000){change();return}const B0=faceBase(o),col={},hid={},cl=(o.cl||[]).map(()=>new Set());
+function keepFaceData(o,change){const has=x=>x&&Object.keys(x).length;if(!(has(o.fc)||has(o.hf)||has(o.sh)||(o.cl&&o.cl.length))){change();return}
+ let m0;try{m0=evaluate(o)}catch(_){change();return}if(m0.f.length>400000){change();return}const B0=faceBase(o),col={},hid={},shl={},cl=(o.cl||[]).map(()=>new Set());for(const k in o.sh||{}){const b=B0[k];if(b!==undefined&&shl[b]===undefined)shl[b]=o.sh[k]}
  for(const k in o.fc||{}){const b=B0[k];if(b!==undefined&&col[b]===undefined)col[b]=o.fc[k]}for(const k in o.hf||{}){const b=B0[k];if(b!==undefined)hid[b]=1}
  (o.cl||[]).forEach((c,ci)=>c.f.forEach(k=>{const b=B0[k];if(b!==undefined)cl[ci].add(b)}));
- change();const m1=evaluate(o),B1=faceBase(o),fc={},hf={},cf=(o.cl||[]).map(()=>[]);
- B1.forEach((b,k)=>{if(col[b]!==undefined)fc[k]=col[b];if(hid[b])hf[k]=1;cl.forEach((S,ci)=>{if(S.has(b))cf[ci].push(k)})});
- o.fc=fc;o.hf=hf;if(o.cl)o.cl.forEach((c,ci)=>{c.f=cf[ci]})}
+ change();const m1=evaluate(o),B1=faceBase(o),fc={},hf={},sh={},cf=(o.cl||[]).map(()=>[]);
+ B1.forEach((b,k)=>{if(col[b]!==undefined)fc[k]=col[b];if(shl[b]!==undefined)sh[k]=shl[b];if(hid[b])hf[k]=1;cl.forEach((S,ci)=>{if(S.has(b))cf[ci].push(k)})});
+ o.fc=fc;o.hf=hf;if(has(o.sh))o.sh=sh;if(o.cl)o.cl.forEach((c,ci)=>{c.f=cf[ci]})}
 function insertNodeKeepColors(o,nn){keepFaceData(o,()=>{placeNode(o,nn);dirtyFrom(o,o.nodes.indexOf(nn))})}
 function insertNodeKeepColorsOld(o,nn){const L=o.nodes.length-1,last=o.nodes[L],emptyEdit=last.type==='Edit'&&!Object.keys(last.off).length;
  try{if(o.fc&&Object.keys(o.fc).length){evaluate(o);const inp=emptyEdit?o.nodes[L-1].out:last.out,res=inp&&TY[nn.type].fn(inp,nn.p,nn);
@@ -1624,7 +1626,8 @@ function objXform(dx,dy){const o=objs[sel];if(!o)return;if(xe()==='scale'){scale
  if(xe()==='move'){const k=(ortho?dist:drag.ot.z+dist)/draw.F,w=axisC(unview(dx*k,-dy*k,0));o.pos=o.pos.map((v,i)=>+(v+w[i]).toFixed(4))}
  else{const k=.01;let R;if(axisK!==null){const e=[0,0,0];e[axisK]=1;R=axisRot(e,dx*k)}else R=mulM(axisRot(unview(0,1,0),-dx*k),axisRot(unview(1,0,0),-dy*k));o.rot=eulerOf(mulM(R,rotMat(o.rot)))}}
 /* ---- on-screen gizmo: arrows (move) and rings (rotate) in world X/Y/Z ---- */
-function gizmoHit(x,y){const g=draw.gz;if(!g)return null;if((xe()==='scale'||xe()==='move')&&Math.hypot(x-g.px,y-g.py)<10)return{k:3};let best=null,bd=9;
+function gizmoHit(x,y){const g=draw.gz;if(!g)return null;if((xe()==='scale'||xe()==='move')&&Math.hypot(x-g.px,y-g.py)<10)return{k:3};
+ if(xe()==='move'&&g.pl)for(let n=0;n<3;n++){const P=g.pl[n];if(P&&Math.abs(x-P.c[0])<8&&Math.abs(y-P.c[1])<8)return{k:-1,p:n,a:P.a,b:P.b}}let best=null,bd=9;
  g.ax.forEach((A,k)=>{let d;
   if(xe()==='move'||xe()==='scale'){const vx=A.tip[0]-g.px,vy=A.tip[1]-g.py,l2=vx*vx+vy*vy||1,t=Math.max(0,Math.min(1,((x-g.px)*vx+(y-g.py)*vy)/l2));d=Math.hypot(x-(g.px+vx*t),y-(g.py+vy*t))}
   else{d=1e9;A.ring.forEach(p=>{d=Math.min(d,Math.hypot(p[0]-x,p[1]-y))})}
@@ -1634,6 +1637,8 @@ function movePts0(w){const so=objs[sel],en=editNode(so);if(!en)return;const l=wl
 function gizmoDrag(e){const g=draw.gz,h=drag.gz,so=objs[sel];if(!g||!so)return;
  const r=cv.getBoundingClientRect(),x=e.clientX-r.left,y=e.clientY-r.top,A=g.ax[h.k];
  if(xe()==='scale'){const f=scaleFactor(g,h,A,e);if(editMode)scalePts(h.k,f);else scaleObj(h.k,f)}
+ else if(xe()==='move'&&h.k===-1){/* plane handle: solve the screen drag as a mix of the two axes */
+  const a=g.ax[h.a],b=g.ax[h.b],ax_=a.tip[0]-g.px,ay=a.tip[1]-g.py,bx=b.tip[0]-g.px,by=b.tip[1]-g.py,det=ax_*by-ay*bx,dx=e.clientX-drag.x,dy=e.clientY-drag.y;if(Math.abs(det)>1){const s1=(dx*by-dy*bx)/det,t1=(ax_*dy-ay*dx)/det,w=[0,0,0];w[h.a]=s1*g.L;w[h.b]=t1*g.L;if(editMode)movePts(w);else so.pos=so.pos.map((v,i)=>+(v+w[i]).toFixed(4))}}
  else if(xe()==='move'&&h.k===3){/* centre handle: free move in the screen plane (Shift = along the view direction) */
   const dx=e.clientX-drag.x,dy=e.clientY-drag.y,k=g.zd/draw.F,w=axisC(e.shiftKey?unview(0,0,-dy*k):unview(dx*k,-dy*k,0));
   if(editMode)movePts(w);else so.pos=so.pos.map((v,i)=>+(v+w[i]).toFixed(4))}
@@ -1683,6 +1688,50 @@ function symFaces(o,set){if(!symEdit||!o)return set;const m=evaluate(o),en=editN
  const bp=i=>{const v=m.v[i],q=en&&en.rep&&en.off[en.rep[i]];return q?[v[0]-q[0],v[1]-q[1],v[2]-q[2]]:v},cen=f=>{const c=[0,0,0];f.forEach(i=>{const b=bp(i);c[0]+=b[0]/f.length;c[1]+=b[1]/f.length;c[2]+=b[2]/f.length});return c};
  const K=new Map();m.f.forEach((f,i)=>K.set(key(cen(f)),i));const out=new Set(set);
  set.forEach(i=>{const f=m.f[i];if(!f)return;symSubsets().forEach(ss=>{const c=cen(f);ss.forEach(a=>{c[a]=-c[a]});const j=mfind(K,c);if(j!==undefined)out.add(j)})});return out}
+/* ===== Maya-style modeling commands ===== */
+/* a new object holding the given faces of o (same place, rotation, size and colours) */
+function facesToObj(o,fis,name){const m=evaluate(o),map=new Map(),V=[],F=[],fc={};fis.forEach(fi=>{const f=m.f[fi];if(!f)return;if(o.fc&&o.fc[fi])fc[F.length]=o.fc[fi];F.push(f.map(i=>{if(!map.has(i)){map.set(i,V.length);V.push(m.v[i].slice())}return map.get(i)}))});
+ const n=addObj('Mesh',0);n.nodes[0].mesh={v:V,f:F};n.name=name;if(o.sh){const sh={};fis.forEach((fi,k)=>{if(o.sh[fi])sh[k]=o.sh[fi]});n.sh=sh}n.pos=o.pos.slice();n.rot=o.rot.slice();n.sc=(o.sc||[1,1,1]).slice();n.color=o.color;n.fc=fc;return n}
+function extractFaces(dup){const o=objs[sel];if(!o||!editMode||sub!=='face'||!selPts.size){toast('Select faces first (Faces mode, F11), then '+(dup?'Duplicate Face':'Extract'));return}
+ const nf=evaluate(o).f.length,fis=[...selPts].filter(i=>i<nf).sort((a,b)=>a-b),oi=sel;if(!dup)deleteFaces();sel=oi;const n=facesToObj(o,fis,o.name+(dup?'_faces':'_extract'));
+ setTool(null);sel=objs.indexOf(n);osel.clear();selPts.clear();setXf('move');all();commit();toast((dup?'Copied ':'Extracted ')+fis.length+' face'+(fis.length>1?'s':'')+' into a new object "'+n.name+'" (selected, Move tool on).')}
+/* Separate: every piece of the object that is not connected to the rest becomes its own object */
+function separateObj(){const o=objs[sel];if(!o){toast('Select an object first');return}const m=evaluate(o),rep=weldRep(m),par=new Int32Array(m.v.length).map((_,i)=>i),fd=i=>{while(par[i]!==i){par[i]=par[par[i]];i=par[i]}return i};
+ m.f.forEach(f=>{const a=fd(rep[f[0]]>=0?rep[f[0]]:f[0]);f.forEach(i=>{const b=fd(rep[i]>=0?rep[i]:i);if(a!==b)par[b]=a})});const G=new Map();m.f.forEach((f,fi)=>{const r=fd(rep[f[0]]>=0?rep[f[0]]:f[0])+'|'+((o.sh&&o.sh[fi])||0);if(!G.has(r))G.set(r,[]);G.get(r).push(fi)});
+ if(G.size<2){toast('This object is one connected piece, so there is nothing to separate. (Use Extract to split off selected faces.)');return}if(G.size>200){toast(G.size+' pieces: too many to separate into objects');return}
+ setTool(null);const at=objs.indexOf(o),gid=++gid2;groups.push({id:gid,name:o.name,open:true});const made=[...G.values()].map((fis,k)=>{const n=facesToObj(o,fis,o.name+'_'+(k+1));n.g=gid;if(!o.rot.some(v=>v)&&(o.sc||[1,1,1]).every(v=>v===1)){const c0=n.pos.slice();centerPivotOf(n);n.pos=n.pos.map((v,i)=>v+c0[i])}return n});
+ objs.splice(objs.indexOf(o),1);sel=objs.indexOf(made[0]);osel.clear();made.slice(1).forEach(n=>osel.add(n));all();commit();toast('Separated into '+made.length+' objects (grouped as "'+o.name+'").')}
+/* Collapse: each selected edge (or face) shrinks to one point at its centre */
+FOPS.Collapse={p:{},fn:(m,p,n)=>{const G=n.fl||[];if(!G.length)return m;const rep=weldRep(m),R=i=>rep[i]>=0?rep[i]:i,par=new Map(),fd=i=>{while(par.has(i)&&par.get(i)!==i)i=par.get(i);return i};
+ G.forEach(g=>{const a=fd(R(g[0]));g.forEach(v=>{const b=fd(R(v));if(a!==b)par.set(b,a)})});const C=new Map();m.v.forEach((v,i)=>{const r=R(i);if(!par.has(r)&&!G.some(g=>g.includes(r)))return;const root=fd(r);if(!C.has(root))C.set(root,new Set());C.get(root).add(i)});
+ const map=new Map(),pos=new Map();C.forEach((S,root)=>{if(S.size<2)return;const reps=[...new Set([...S].map(R))],c=[0,0,0];reps.forEach(i=>{c[0]+=m.v[i][0]/reps.length;c[1]+=m.v[i][1]/reps.length;c[2]+=m.v[i][2]/reps.length});pos.set(root,c);S.forEach(i=>{if(i!==root)map.set(i,root)})});
+ return map.size?weldApply(m,map,pos):m}};
+function collapseSel(){const o=objs[sel];if(!o||!editMode){toast('Select edges or faces first, then Collapse');return}const m=evaluate(o);let G=[];
+ if(sub==='edge'&&selEdges.size)G=[...selEdges].map(k=>k.split('_').map(Number));else if(sub==='face'&&selPts.size)G=[...selPts].filter(i=>m.f[i]).map(i=>m.f[i].slice());
+ if(!G.length){toast('Select edges (F10) or faces (F11) first, then Collapse');return}const nn=mk('Collapse');nn.fl=G;keepFaceData(o,()=>{placeNode(o,nn);dirtyFrom(o,o.nodes.indexOf(nn))});selPts.clear();selEdges.clear();all();commit();toast('Collapsed '+G.length+' '+(sub==='edge'?'edge':'face')+(G.length>1?'s':'')+' to their centres. Ctrl+Z undoes it.')}
+/* Merge: selected points closer than the threshold become one (Maya Merge); the threshold is "distance" in the Weld card */
+function mergeThresh(){const o=objs[sel],en=o&&editNode(o);if(!o||!editMode||!en){toast('Select points (or edges/faces) first, then Merge');return}const pts=[...(sub==='face'?facePts(en):sub==='edge'&&selEdges.size?new Set([...selEdges].flatMap(k=>k.split('_').map(Number))):selPts)];
+ if(pts.length<2){toast('Select two or more points, then Merge');return}const m=evaluate(o);let mn=[1e9,1e9,1e9],mx=[-1e9,-1e9,-1e9];m.v.forEach(v=>{for(let k=0;k<3;k++){mn[k]=Math.min(mn[k],v[k]);mx[k]=Math.max(mx[k],v[k])}});
+ const nn=mk('Weld');nn.fl=pts;nn.p.distance=+Math.max(.001,Math.hypot(mx[0]-mn[0],mx[1]-mn[1],mx[2]-mn[2])*.01).toFixed(3);const nv0=new Set(m.f.flat()).size;keepFaceData(o,()=>{placeNode(o,nn);dirtyFrom(o,o.nodes.indexOf(nn))});const nv1=new Set(evaluate(o).f.flat()).size;selPts.clear();selEdges.clear();all();commit();
+ toast(nv0>nv1?'Merged '+(nv0-nv1)+' point'+(nv0-nv1>1?'s':'')+' that were closer than '+nn.p.distance+'. Raise "distance" in the Weld card to merge points further apart.':'No selected points were closer than '+nn.p.distance+'. Raise "distance" in the Weld card, or use Merge To Center.')}
+/* Bridge: two selected faces with the same number of corners are removed and joined by a tube of new faces */
+FOPS.Bridge={p:{divisions:[0,0,10,1]},fn:(m,p,n)=>{const fl=n.fl||[];if(fl.length!==2)return m;const A=m.f[fl[0]],B=m.f[fl[1]];if(!A||!B||A.length!==B.length)return m;const N=A.length,V=m.v.map(v=>v.slice());
+ const Br=B.slice().reverse();let best=0,bd=Infinity;for(let s=0;s<N;s++){let d=0;for(let k=0;k<N;k++){const a=m.v[A[k]],b=m.v[Br[(k+s)%N]];d+=Math.hypot(a[0]-b[0],a[1]-b[1],a[2]-b[2])}if(d<bd){bd=d;best=s}}
+ const Bk=k=>Br[(k+best)%N],D=Math.max(0,Math.round(p.divisions)),rows=[A.slice()];for(let r=1;r<=D;r++){const t=r/(D+1);rows.push(A.map((a,k)=>{const P=m.v[a],Q=m.v[Bk(k)];V.push([P[0]+(Q[0]-P[0])*t,P[1]+(Q[1]-P[1])*t,P[2]+(Q[2]-P[2])*t]);return V.length-1}))}rows.push(A.map((_,k)=>Bk(k)));
+ const F=[],src=[];m.f.forEach((f,fi)=>{if(fi===fl[0]||fi===fl[1])return;F.push(f);src.push(fi)});
+ for(let r=0;r<rows.length-1;r++)for(let k=0;k<N;k++){const a=rows[r][k],b=rows[r][(k+1)%N],c=rows[r+1][(k+1)%N],d=rows[r+1][k];F.push([b,a,d,c]);src.push(fl[0])}
+ return{v:V,f:F,src}}};
+/* Combine (Maya): the selected objects become one object; their points are not merged, so Separate splits them again */
+function combineObjs(){const set=new Set(osel);if(objs[sel])set.add(objs[sel]);const L=objs.filter(o=>set.has(o)&&!o.hid);if(L.length<2){toast('Select two or more objects (Shift+click), then Combine');return}setTool(null);
+ const V=[],F=[],fc={};const sh={};L.forEach((o,oi)=>{const m=evaluate(o),M=mulM(rotMat(o.rot),diag(o.sc||[1,1,1])),b=V.length,f0=F.length;m.v.forEach(v=>{const q=mulv(M,v);V.push([q[0]+o.pos[0],q[1]+o.pos[1],q[2]+o.pos[2]])});m.f.forEach((f,fi)=>{fc[F.length]=(o.fc&&o.fc[fi])||o.color;sh[F.length]=oi+'.'+((o.sh&&o.sh[fi])||0);F.push(f.map(i=>i+b))})});
+ const n=addObj('Mesh',0);objs.pop();n.nodes[0].mesh={v:V,f:F};n.name=L[0].name;n.color=L[0].color;n.fc=fc;n.sh=sh;n.g=L[0].g||0;const at=objs.indexOf(L[0]);L.forEach(o=>objs.splice(objs.indexOf(o),1));objs.splice(Math.min(at,objs.length),0,n);
+ sel=objs.indexOf(n);osel.clear();centerPivotOf(n);all();commit();toast('Combined '+L.length+' objects into "'+n.name+'". Separate splits them again.')}
+function centerPivotOf(o){const m=evaluate(o),used=new Set(m.f.flat());if(!used.size)return;const mn=[1e9,1e9,1e9],mx=[-1e9,-1e9,-1e9];used.forEach(i=>{for(let k=0;k<3;k++){mn[k]=Math.min(mn[k],m.v[i][k]);mx[k]=Math.max(mx[k],m.v[i][k])}});const c=mn.map((v,k)=>(v+mx[k])/2);
+ o.nodes[0].mesh={v:o.nodes[0].mesh.v.map(v=>[v[0]-c[0],v[1]-c[1],v[2]-c[2]]),f:o.nodes[0].mesh.f};dirtyFrom(o,0);o.pos=c}
+TY.Bridge=FOPS.Bridge;TY.Collapse=FOPS.Collapse;
+function bridgeSel(){const o=objs[sel];if(!o||!editMode||sub!=='face'||selPts.size!==2){toast('Select exactly two faces (F11) with the same number of corners, then Bridge');return}const m=evaluate(o),fl=[...selPts];
+ if(m.f[fl[0]].length!==m.f[fl[1]].length){toast('The two faces have a different number of corners ('+m.f[fl[0]].length+' and '+m.f[fl[1]].length+'), so they cannot be bridged');return}
+ const nn=mk('Bridge');nn.fl=fl;keepFaceData(o,()=>{placeNode(o,nn);dirtyFrom(o,o.nodes.indexOf(nn))});selPts.clear();all();commit();toast('Bridged the two faces with a tube of new faces. Add divisions in the Bridge card for more loops along it.')}
 function deleteFaces(){const o=objs[sel];if(!o||sub!=='face'||!selPts.size)return;const nf=evaluate(o).f.length,d=symFaces(o,new Set([...selPts].filter(i=>i<nf)));if(!d.size)return;
  const fc={};let k=0;for(let i=0;i<nf;i++){if(d.has(i))continue;if(o.fc&&o.fc[i])fc[k]=o.fc[i];k++}o.fc=fc;
  const nn=mk('Delete'),L=o.nodes.length-1;nn.fl=[...d];placeNode(o,nn);
@@ -1771,14 +1820,14 @@ const need=()=>!!objs[sel],inEd=()=>editMode&&!!objs[sel],pick=k=>()=>{if(objs[s
 const CMDS=[
  {g:'Tools',l:'Select',k:'Q',f:()=>setXf(xf==='select'?selXf:'select'),on:()=>xf==='select'},
  {g:'Tools',l:'Move',k:'W',f:()=>setXf('move'),on:()=>xf==='move'},
- {g:'Tools',l:'Scale',k:'E',f:()=>setXf('scale'),on:()=>xf==='scale'},
- {g:'Tools',l:'Rotate',k:'R',f:()=>setXf('rot'),on:()=>xf==='rot'},
+ {g:'Tools',l:'Rotate',k:'E',f:()=>setXf('rot'),on:()=>xf==='rot'},
+ {g:'Tools',l:'Scale',k:'R',f:()=>setXf('scale'),on:()=>xf==='scale'},
  ...['X','Y','Z'].map((a,i)=>({g:'Tools',l:'Lock to '+a+' axis',k:a==='Y'?'Shift+Y':a,f:()=>{axisK=axisK===i?null:i;draw()},on:()=>axisK===i})),
  {g:'Tools',l:'World (free move)',f:()=>{axisK=null;draw();toast('World: no axis lock, so moving is free in every direction')},on:()=>axisK===null},
- {g:'Component mode',l:'Object mode',k:'O',f:()=>{setTool(null);all()},on:()=>!editMode&&!knife&&!drawOn&&!odOn&&!ceOn},
- {g:'Component mode',l:'Points',k:'1',k2:'P',en:need,f:pick('pt'),on:()=>editMode&&sub==='pt'},
- {g:'Component mode',l:'Edges',k:'2',k2:'E',en:need,f:pick('edge'),on:()=>editMode&&sub==='edge'},
- {g:'Component mode',l:'Faces',k:'3',k2:'F',en:need,f:pick('face'),on:()=>editMode&&sub==='face'},
+ {g:'Component mode',l:'Object mode',k:'F8',k2:'O',f:()=>{setTool(null);all()},on:()=>!editMode&&!knife&&!drawOn&&!odOn&&!ceOn},
+ {g:'Component mode',l:'Points',k:'F9',k2:'1',k3:'P',en:need,f:pick('pt'),on:()=>editMode&&sub==='pt'},
+ {g:'Component mode',l:'Edges',k:'F10',k2:'2',en:need,f:pick('edge'),on:()=>editMode&&sub==='edge'},
+ {g:'Component mode',l:'Faces',k:'F11',k2:'3',en:need,f:pick('face'),on:()=>editMode&&sub==='face'},
  {g:'Component mode',l:'Loop cut',k:'4',en:need,f:pick('loop'),on:()=>editMode&&sub==='loop'},
  {g:'Component mode',l:'Knife',k:'K',en:need,f:pick('knife'),on:()=>knife&&!kaOn&&!scOn},
  {g:'Component mode',l:'Knife Area',en:need,f:pick('karea'),on:()=>knife&&kaOn},
@@ -1841,6 +1890,16 @@ const CMDS=[
  {g:'Render',l:'Ray trace 2K (CPU)',f:()=>renderRT()},
  {g:'Render',l:'Show last render',f:()=>showRender()},
  {g:'Modeling',l:'Fill hole',en:need,f:fillHole},
+ {g:'Modeling',l:'Combine',en:()=>osel.size>0,f:combineObjs},
+ {g:'Modeling',l:'Separate',en:need,f:separateObj},
+ {g:'Modeling',l:'Extract',en:()=>inEd()&&sub==='face'&&selPts.size>0,f:()=>extractFaces(false)},
+ {g:'Modeling',l:'Duplicate face',en:()=>inEd()&&sub==='face'&&selPts.size>0,f:()=>extractFaces(true)},
+ {g:'Modeling',l:'Bridge',en:()=>inEd()&&sub==='face'&&selPts.size===2,f:bridgeSel},
+ {g:'Modeling',l:'Merge points',en:()=>inEd()&&(selPts.size>0||selEdges.size>0),f:mergeThresh},
+ {g:'Modeling',l:'Merge to center',en:()=>inEd()&&(selPts.size>0||selEdges.size>0),f:groupWeld},
+ {g:'Modeling',l:'Collapse',en:()=>inEd()&&(selPts.size>0||selEdges.size>0),f:collapseSel},
+ {g:'Modeling',l:'Multi-Cut',en:need,f:pick('knife'),on:()=>knife&&!kaOn&&!scOn},
+ {g:'Modeling',l:'Insert edge loop',en:need,f:pick('loop'),on:()=>editMode&&sub==='loop'},
  {g:'Modeling',l:'Clusters',en:()=>!!objs[sel]&&editMode&&(selPts.size>0||selEdges.size>0),f:makeCluster},
  {g:'Object',l:'Hide selected',k:'H',k2:'Ctrl+H',en:()=>!!objs[sel]||osel.size>0,f:hideSel},
  {g:'Object',l:'Unhide all',k:'U',k2:'Ctrl+Shift+H',en:()=>objs.some(o=>o.hid||(o.hf&&Object.keys(o.hf).length)),f:unhideAll},
@@ -1965,10 +2024,10 @@ const MREG=new Map(),MID=new WeakMap();let mseq=0;const BIGM=20000;
 function meshTok(m){let id=MID.get(m);if(!id){id=++mseq;MID.set(m,id)}MREG.set(id,m);return {$M:id}}
 function meshMem(){let t=0;MREG.forEach(m=>{t+=(m.v.length+m.f.length)*50});return t}
 function pruneMeshes(){if(!MREG.size&&!WREG.size)return;const um=new Set(),uw=new Set(),sc=x=>{const re=/"\$([MW])":(\d+)/g;let r;while((r=re.exec(x)))(r[1]==='M'?um:uw).add(+r[2])};undoSt.forEach(sc);redoSt.forEach(sc);sc(lastSnap);if(curFile&&curFile.saved)sc(curFile.saved);[...MREG.keys()].forEach(k=>{if(!um.has(k))MREG.delete(k)});[...WREG.keys()].forEach(k=>{if(!uw.has(k))WREG.delete(k)})}
-function snap(full){return JSON.stringify({v:1,rig:rig.joints,rigm:rig.meta,anim:anim&&Object.keys(anim.keys).length?anim:undefined,groups:groups,cams:cams,objs:objs.map(o=>({g:o.g||0,hid:!!o.hid,name:o.name,pos:o.pos,rot:o.rot,sc:o.sc||[1,1,1],color:o.color,fc:o.fc,hf:o.hf&&Object.keys(o.hf).length?o.hf:undefined,cl:o.cl&&o.cl.length?o.cl:undefined,cnm:o.cnm&&Object.keys(o.cnm).length?o.cnm:undefined,dm:o.dm,op:o.op,
+function snap(full){return JSON.stringify({v:1,rig:rig.joints,rigm:rig.meta,anim:anim&&Object.keys(anim.keys).length?anim:undefined,groups:groups,cams:cams,objs:objs.map(o=>({g:o.g||0,hid:!!o.hid,name:o.name,pos:o.pos,rot:o.rot,sc:o.sc||[1,1,1],color:o.color,fc:o.fc,hf:o.hf&&Object.keys(o.hf).length?o.hf:undefined,cl:o.cl&&o.cl.length?o.cl:undefined,sh:o.sh&&Object.keys(o.sh).length?o.sh:undefined,cnm:o.cnm&&Object.keys(o.cnm).length?o.cnm:undefined,dm:o.dm,op:o.op,
  nodes:o.nodes.filter(n=>!(n.type==='Edit'&&!Object.keys(n.off).length)).map(n=>({type:n.type,on:n.on,p:n.p,off:n.off,fl:n.fl,edge:n.edge||null,mesh:n.mesh?(full||n.mesh.v.length+n.mesh.f.length<BIGM?n.mesh:meshTok(n.mesh)):null,path:n.path||null,pairs:n.pairs||null,sw:n.type==='Skin'&&n.sw&&!n.sw.auto?(full?swPack(n.sw):swTok(n.sw)):undefined}))}))})}
 function restore(s){const sc=JSON.parse(s);if(!sc||!Array.isArray(sc.objs))throw new Error('bad scene');
- const next=sc.objs.map(o=>({g:o.g||0,hid:!!o.hid,name:o.name||'Object',pos:o.pos||[0,0,0],rot:o.rot||[0,0,0],sc:o.sc||[1,1,1],hue:0,color:o.color||'#3aa393',fc:o.fc||{},hf:o.hf||{},cl:Array.isArray(o.cl)?o.cl.map(c=>({name:String(c.name||'Cluster'),f:(c.f||[]).filter(Number.isInteger)})):[],cnm:o.cnm||{},dm:o.dm,op:o.op,
+ const next=sc.objs.map(o=>({g:o.g||0,hid:!!o.hid,name:o.name||'Object',pos:o.pos||[0,0,0],rot:o.rot||[0,0,0],sc:o.sc||[1,1,1],hue:0,color:o.color||'#3aa393',fc:o.fc||{},hf:o.hf||{},sh:o.sh&&typeof o.sh==='object'?o.sh:undefined,cl:Array.isArray(o.cl)?o.cl.map(c=>({name:String(c.name||'Cluster'),f:(c.f||[]).filter(Number.isInteger)})):[],cnm:o.cnm||{},dm:o.dm,op:o.op,
   nodes:(o.nodes||[]).filter(n=>TY[n.type]).map(n=>{const k=mk(n.type);Object.assign(k.p,n.p||{});k.on=n.on!==false;if(n.off)k.off=n.off;k.fl=n.fl||null;if(n.edge)k.edge=n.edge;if(n.mesh){if(n.mesh.$M){k.mesh=MREG.get(n.mesh.$M);if(!k.mesh)throw new Error('bad scene')}else k.mesh=n.mesh}if(n.path)k.path=n.path;if(n.pairs)k.pairs=n.pairs;if(n.sw){k.sw=n.sw.$W?WREG.get(n.sw.$W):swUnpack(n.sw);if(!k.sw)throw new Error('bad scene')}return k})}));
  if(!next.every(o=>o.nodes.length&&GEN[o.nodes[0].type]))throw new Error('bad scene');
  objs.length=0;next.forEach(o=>objs.push(o));rig.joints=(sc.rig||[]).map(j=>({...j,rot:j.rot||[0,0,0]}));rig.meta=sc.rigm||null;anim=sc.anim?{fps:24,len:48,frame:0,keys:{},loop:true,ease:'smooth',...sc.anim}:{fps:24,len:48,frame:0,keys:{},loop:true,ease:'smooth'};animRev++;tlStop();groups=(sc.groups||[]).map(g=>({id:g.id,name:g.name,open:g.open!==false}));gid2=groups.reduce((m,g)=>Math.max(m,g.id),0);cams=(sc.cams||[]).map(c=>({name:c.name||'camera',tgt:c.tgt||[0,0,0],yaw:c.yaw||0,pitch:c.pitch||0,dist:c.dist||9,pan:c.pan||[0,0],f:c.f||35}));if(camSel>=cams.length)camSel=-1;if(camAct>=cams.length){camAct=-1;tgt=[0,0,0]}osel.clear();rigSel=-1;sel=Math.min(sel,Math.max(0,objs.length-1));selPts.clear();selEdges.clear();ringPrev=null;all()}
@@ -2625,8 +2684,8 @@ let shelfIdx=0,rowSel='Primitives';const BR=['#e5484d','#f2b01e','#3fb950','#2dc
 const SHELVES=[
  {n:'Basic Modeling Tools',rows:[
   {n:'Primitives',items:[{c:'Add cube',t:'Cube',ic:'cube'},{c:'Add sphere',t:'Sphere',ic:'sphere'},{c:'Add torus',t:'Torus',ic:'torus'},{c:'Add trapezoid',t:'Trapezoid',ic:'trap'},{c:'Add teapot',t:'Teapot',ic:'teapot'},{c:'Add tree',t:'Tree',ic:'tree'}]},
-  {n:'Transform and scene',items:[{gl:'Tools'},{c:'Select'},{c:'Move',ic:'move'},{c:'Rotate',ic:'rotate'},{c:'Scale',ic:'scale'},{c:'Toggle grid',t:'Grid',ic:'grid'},{sp:1},{gl:'Component'},{c:'Object mode',t:'Object'},{c:'Points',ic:'points'},{c:'Edges',ic:'edges'},{c:'Faces',ic:'faces'},{c:'Clusters',t:'Clusters'},{sp:1},{gl:'Pivot'},{c:'Center pivot',t:'Center Pivot'},{c:'Center to object',t:'Center to Object'},{sp:1},{gl:'Axis lock'},{c:'Lock to X axis',t:'X',ic:'axX'},{c:'Lock to Y axis',t:'Y',ic:'axY'},{c:'Lock to Z axis',t:'Z',ic:'axZ'},{c:'World (free move)',t:'World',ic:'world'},{sp:1},{gl:'Scene'},{c:'Hide selected',t:'Hide'},{c:'Unhide all',t:'Unhide'},{c:'Remove object',t:'Remove object'},{c:'Clear selection',t:'Clear'},{c:'Undo'},{c:'Redo'},{c:'Save file',t:'Save'},{c:'Open file',t:'Load'}]},
-  {n:'Modeling tools',items:[{c:'Loop cut',t:'Loop Cut'},{c:'Knife Area',t:'Knife Area',ic:'karea'},{c:'Add loop edge',t:'Add Loop Edge',ic:'ledge'},{c:'Add vertex',t:'Add Vertex',ic:'points'},{c:'Group weld',t:'Group Weld',ic:'bullseye'},{c:'Target weld',t:'Target Weld',ic:'bullseye'},{c:'Extrude faces',t:'Extrude'},{c:'Bevel faces or edges',t:'Bevel'},{c:'Fill hole',t:'Fill Hole'},{c:'Invert selection',t:'Invert'},{c:'Select edge loop',t:'Loop'},{c:'Select edge ring',t:'Ring'},{c:'Mirror',t:'Mirror'},{c:'Symmetrize',t:'Symmetrize'},{c:'Smooth surface',t:'Smooth'},{c:'Freeze (delete history)',t:'Freeze',ic:'freeze'},{c:'Merge'},{sp:1},{c:'Duplicate',ic:'dup3'},{sp:1},{c:'World Draw',t:'World Draw',ic:'draw'},{c:'Object Draw',t:'Object Draw',ic:'odraw'},{c:'Free Draw',t:'Free Draw',ic:'fdraw'},{sp:1},{gl:'Soft select'},{c:'Soft select',t:'Soft Select',ic:'soft'},{soft:'mode'},{soft:'curve'},{soft:'r'}]},
+  {n:'Transform and scene',items:[{gl:'Tools'},{c:'Select'},{c:'Move',ic:'move'},{c:'Rotate',ic:'rotate'},{c:'Scale',ic:'scale'},{c:'Toggle grid',t:'Grid',ic:'grid'},{sp:1},{gl:'Component'},{c:'Object mode',t:'Object'},{c:'Points',ic:'points'},{c:'Edges',ic:'edges'},{c:'Faces',ic:'faces'},{c:'Clusters',t:'Clusters'},{c:'Symmetrize',t:'Symmetry'},{sp:1},{gl:'Pivot'},{c:'Center pivot',t:'Center Pivot'},{c:'Freeze (delete history)',t:'Freeze'},{c:'Center to object',t:'Center to Object'},{sp:1},{gl:'Axis lock'},{c:'Lock to X axis',t:'X',ic:'axX'},{c:'Lock to Y axis',t:'Y',ic:'axY'},{c:'Lock to Z axis',t:'Z',ic:'axZ'},{c:'World (free move)',t:'World',ic:'world'},{sp:1},{gl:'Scene'},{c:'Hide selected',t:'Hide'},{c:'Unhide all',t:'Unhide'},{c:'Remove object',t:'Remove object'},{c:'Clear selection',t:'Clear'},{c:'Undo'},{c:'Redo'},{c:'Save file',t:'Save'},{c:'Open file',t:'Load'}]},
+  {n:'Modeling tools',items:[{gl:'Mesh'},{c:'Combine'},{c:'Separate'},{c:'Extract'},{c:'Mirror'},{c:'Smooth surface',t:'Smooth'},{sp:1},{gl:'Components'},{c:'Extrude faces',t:'Extrude'},{c:'Bridge'},{c:'Bevel faces or edges',t:'Bevel'},{c:'Merge points',t:'Merge'},{c:'Merge to center',t:'Merge To Center'},{c:'Collapse'},{c:'Duplicate face',t:'Duplicate Face'},{c:'Fill hole',t:'Fill Hole'},{sp:1},{gl:'Tools'},{c:'Multi-Cut'},{c:'Insert edge loop',t:'Insert Edge Loop'},{c:'Target weld',t:'Target Weld'},{c:'Free Draw',t:'Free Draw',ic:'fdraw'},{sp:1},{gl:'Soft select'},{c:'Soft select',t:'Soft Select',ic:'soft'},{soft:'mode'},{soft:'curve'},{soft:'r'}]},
   {n:'Rotoscope',items:[{c:'Rotoscope: load image',t:'Load image…'},{c:'Rotoscope: move and scale',t:'Move / Scale'},{c:'Rotoscope: show or hide',t:'Visible'},{c:'Rotoscope: remove image',t:'Remove'},{roto:'op'},{roto:'size'},{roto:'x'},{roto:'y'},{rname:1}]},
   {n:'File',items:[{c:'New file',t:'New File'},{c:'Open file',t:'Open File'},{c:'Save file',t:'Save'},{c:'Save file as',t:'Save As'},{fname:1},{c:'Export file',t:'Export File'},{c:'Create new model',t:'Create New Model'},{sp:1},{c:'Record video (MP4)',t:'Record',id:'rec'},{sp:1},{c:'Object wireframe',t:'Wireframe'},{c:'Object shaded',t:'Shaded'},{c:'Object wireframe + shaded',t:'Wireframe + Shaded'},{vp:'op'}]}]},
  {n:'Coloring and Rendering',rows:[
@@ -2638,7 +2697,7 @@ const SHELVES=[
  ,{n:'Experimental and proprietary',rows:[{n:'Cut apart',items:[{c:'Separate and Cut',t:'Separate and Cut',ic:'sepc'},{sp:1},{c:'Affect front vertices',t:'Affect Front Vertices'}]}]}
 ];
 /* one numbered tab per sub shelf, in order; the File row lives in the top bar and is not a tab */
-const TAB_INFO={'Primitives':'Add a cube, sphere, torus, trapezoid, teapot or tree','Transform and scene':'Select, move, rotate and scale; choose points, edges or faces; pivot and axis lock; undo, redo, save and load','Modeling tools':'Cut, knife, extrude, bevel, mirror, weld, merge, duplicate, draw and soft select','Draw':'Draw shapes straight into the scene','Rotoscope':'Load a reference image behind the model and place it','Coloring':'Paint faces and objects, and choose how the model is displayed','Render 2K':'Render a 2K image with the GPU or the ray tracer','Navigating':'Camera views, zoom and cameras','Rigging':'Auto-rig a biped skeleton with fingers and mouth, bind skin, pose with IK, animate and lip-sync on a timeline','Sculpting':'Sculpt brushes and their size, intensity and falloff','Experimental and proprietary':'Separate and Cut, and Affect Front Vertices'};
+const TAB_INFO={'Primitives':'Add a cube, sphere, torus, trapezoid, teapot or tree','Transform and scene':'Select, move, rotate and scale; choose points, edges or faces; pivot and axis lock; undo, redo, save and load','Modeling tools':'Maya-style: Combine, Separate, Extract, Mirror, Smooth, Extrude, Bridge, Bevel, Merge, Collapse, Fill Hole, Multi-Cut, Insert Edge Loop, Target Weld, Free Draw, Soft Select','Draw':'Draw shapes straight into the scene','Rotoscope':'Load a reference image behind the model and place it','Coloring':'Paint faces and objects, and choose how the model is displayed','Render 2K':'Render a 2K image with the GPU or the ray tracer','Navigating':'Camera views, zoom and cameras','Rigging':'Auto-rig a biped skeleton with fingers and mouth, bind skin, pose with IK, animate and lip-sync on a timeline','Sculpting':'Sculpt brushes and their size, intensity and falloff','Experimental and proprietary':'Separate and Cut, and Affect Front Vertices'};
 const TABS=[];SHELVES.forEach((S,si)=>{(S.rows||[{n:S.n}]).forEach(r=>{if(si===0&&r.n==='File')return;const multi=S.rows&&S.rows.length>1;TABS.push({si,row:S.rows?r.n:null,label:multi?r.n:S.n})})});
 /* tab order: Coloring is 4 and Rendering 5, straight after the modeling tabs */
 {const lead=['Primitives','Transform and scene','Modeling tools'],mv=TABS.filter(t=>/^Coloring|^Render/.test(t.label)),rest=TABS.filter(t=>!mv.includes(t));const a=rest.filter(t=>lead.includes(t.label)),b=rest.filter(t=>!lead.includes(t.label));TABS.length=0;TABS.push(...a,...mv,...b)}
@@ -3374,8 +3433,8 @@ cv.addEventListener('mousedown',e=>{if(e.button===1)e.preventDefault()});
 cv.addEventListener('auxclick',e=>{if(e.button===1)e.preventDefault()});
 cv.addEventListener('pointerdown',e=>{drag={x:e.clientX,y:e.clientY,moved:0};cv.setPointerCapture(e.pointerId);
  const r0=cv.getBoundingClientRect();if(hlMode&&e.button===0){const x=e.clientX-r0.left,y=e.clientY-r0.top;drag.hl=true;box={x0:x,y0:y,x1:x,y1:y,hl:true};draw();return}
-if(e.button===2){drag.rc=true;return}
- if(e.button===1){drag.zm=true;e.preventDefault();return}
+if(e.button===2){if(e.altKey){drag.zm=true;e.preventDefault();return}drag.rc=true;return}
+ if(e.button===1){e.preventDefault();if(e.altKey){drag.pan=true;return}drag.zm=true;return}
  if(e.button===0&&e.altKey){drag.orb=true;return}
  if(ortho&&rotoEdit&&e.button===0&&draw.roto&&draw.roto.s.vis){const h=rotoHit(e.clientX-r0.left,e.clientY-r0.top);if(h){drag.ro=h;return}}
  if(drawOn&&e.button===0&&!e.altKey){dwDown(e);return}
@@ -3418,6 +3477,7 @@ cv.addEventListener('pointermove',e=>{if(!drag)return;const dx=e.clientX-drag.x,
  if(drag.lcs){const r=cv.getBoundingClientRect(),L=drag.lcs,t=loopT(L,e.clientX-r.left,e.clientY-r.top),o=objs[sel];if(o&&L.nodes.length&&L.nodes[0].p.pos!==t){L.nodes.forEach(n=>{n.p.pos=t;const i=o.nodes.indexOf(n);if(i>=0)dirtyFrom(o,i)});evaluate(o);draw()}$('#stat').textContent='Loop cut at '+Math.round(t*100)+'% · release to keep it';return}
  if(drag.smp){sampleAt(e);return}
  if(drag.rc||drag.orb){if(ortho){panX+=dx;panY+=dy;drag.x=e.clientX;drag.y=e.clientY;draw();return}orbitBy(dx,dy,.008,drag.rc);drag.x=e.clientX;drag.y=e.clientY;draw();return}
+ if(drag.pan){panX+=dx;panY+=dy;drag.x=e.clientX;drag.y=e.clientY;draw();return}
  if(drag.zm){dist=Math.max(.3,Math.min(80,dist*Math.exp((dy-dx)*.008)));drag.x=e.clientX;drag.y=e.clientY;draw();return}
  if(drag.exm&&exNode&&draw.exm){const m=draw.exm,s2=((e.clientX-drag.x)*m.ux+(e.clientY-drag.y)*m.uy)/m.pxu/drag.exm.ks;exNode.p.dist=Math.max(-5,Math.min(5,+(drag.exm.d0+s2).toFixed(3)));const so=objs[sel],i=so.nodes.indexOf(exNode);dirtyFrom(so,i);evaluate(so);draw();return}
  if(drag.ik){ikDrag(e);return}
@@ -3447,7 +3507,7 @@ cv.addEventListener('pointerup',e=>{if(drag&&drag.sbx){const b=box;box=null;drag
  if(drag&&drag.ro){drag=null;rotoSync();return}
  if(drag&&drag.dw){dwUp(e);drag=null;draw();return}
  if(drag&&drag.od){odUp(e);drag=null;draw();return}
- if(drag&&(drag.rc||drag.zm||drag.orb)){drag=null;return}
+ if(drag&&(drag.rc||drag.zm||drag.orb||drag.pan)){drag=null;return}
  if(drag&&drag.exm){drag=null;panels();draw();return}
  if(drag&&drag.sc){sculptEnd();drag=null;panels();return}
  if(drag&&drag.wp){wpEnd();drag=null;panels();return}

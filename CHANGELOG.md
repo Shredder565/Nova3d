@@ -4,6 +4,17 @@ Newest first. Version numbers are the published build numbers of NOVA 3D (former
 
 > Versions 1–67 were built over many early steps and per-version numbers were not recorded, so they are grouped at the bottom. Every version from v68 on is listed individually.
 
+## v185 — Modeling and transform tools rebuilt the Maya way
+Studied from Maya 2026's Poly Modeling shelf and Move/Rotate/Scale tools.
+- **Modeling tools shelf rebuilt to match Maya.** Only Free Draw and Soft Select were kept from the old shelf; everything else is new or redone, in Maya's order:
+  - *Mesh:* **Combine** (selected objects become one object; points are not merged), **Separate** (every unconnected piece, or every object that was combined, becomes its own object, grouped), **Extract** (selected faces become a new object), **Mirror**, **Smooth**.
+  - *Components:* **Extrude**, **Bridge** (two selected faces with the same number of corners are joined by a tube; add divisions in the Bridge card), **Bevel**, **Merge** (selected points closer than a threshold become one; the threshold is "distance" in the Weld card), **Merge To Center**, **Collapse** (each selected edge or face shrinks to a point), **Duplicate Face** (copies the selected faces into a new object), **Fill Hole**.
+  - *Tools:* **Multi-Cut** (the knife), **Insert Edge Loop** (press on an edge, slide, release), **Target Weld**, **Free Draw**, **Soft Select**.
+  - Removed from the shelf: Knife Area, Add Loop Edge, Add Vertex, Group Weld (now Merge To Center), Invert, Loop, Ring, World Draw, Object Draw, Duplicate object. Their shortcuts and the right-click menu still work. Symmetrize moved to Transform and scene (Component group, as "Symmetry"), Freeze to the Pivot group.
+- **Keys like Maya:** W Move, **E Rotate, R Scale** (E and R were swapped before), Q Select. F8 object mode, F9 points, F10 edges, F11 faces (1/2/3 still work too).
+- **Move manipulator like Maya:** besides the X/Y/Z arrows and the yellow centre square (free move in the screen plane), there are now three small plane squares between the arrows: drag one to move in that plane (for example the green one moves along X and Z, keeping the height). Moves are along world axes, Maya's default.
+- **Navigation like Maya:** Alt+left-drag tumbles, **Alt+middle-drag pans**, **Alt+right-drag zooms** (the old right-drag orbit and middle-drag zoom still work).
+
 ## v184 — Fill Hole, H/U keys, Symmetrize fix
 - **New Fill Hole button** (Modeling tools, after Bevel). Select points or edges on the rim of a hole (or a face next to it) and press Fill Hole: the hole is closed with a new polygon. With nothing selected, every open hole in the model is filled. Ctrl+Z undoes it; the new polygons are a FillHole card you can delete.
 - **H hides, U unhides.** H hides the selected objects (or, in Points/Edges/Faces mode, the highlighted part); U shows everything hidden again. Undo is now Ctrl+Z only (U used to undo too).
