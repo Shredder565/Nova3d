@@ -4,6 +4,11 @@ Newest first. Version numbers are the published build numbers of NOVA 3D (former
 
 > Versions 1–67 were built over many early steps and per-version numbers were not recorded, so they are grouped at the bottom. Every version from v68 on is listed individually.
 
+## v187 — Freeze and Merge back on the Modeling shelf
+- **Merge** (Mesh group, after Combine; Alt+J): select two or more overlapping objects (Shift+click) and press Merge. They become one object: the polygons that end up inside the other object are deleted and the points along the seam are welded. (Combine still joins objects without changing them.)
+- **Freeze** (Mesh group, after Smooth; Shift+F): bakes the history into a plain mesh and resets the object's transforms.
+- The point-merging button is now labelled **Merge Points** so the two are not confused.
+
 ## v186 — Knife Area and Group Weld back on the shelf
 - **Knife Area** and **Group Weld** are back on the Modeling tools shelf, in the Tools group after Multi-Cut.
 
