@@ -4,6 +4,10 @@ Newest first. Version numbers are the published build numbers of NOVA 3D (former
 
 > Versions 1–67 were built over many early steps and per-version numbers were not recorded, so they are grouped at the bottom. Every version from v68 on is listed individually.
 
+## v189 — Box-select objects in Object mode
+- **In Object mode, drag a box to select several objects:** press on empty space (or on an object that is not selected) and drag; every object the box touches is selected. Shift+drag adds to the selection, Ctrl+drag removes. A plain click still selects one object, and a click on empty space clears the selection.
+- **All selected objects move together** (dragging any selected object, or the Move arrows/plane squares), like Maya. With the Select tool (Q) a drag always draws a box.
+
 ## v188 — Ctrl+D duplicates
 - **Ctrl+D** duplicates the selected object, as in Maya (Shift+D still works too).
 

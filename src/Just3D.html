@@ -1548,6 +1548,13 @@ function segHitsRect(ax,ay,bx,by,x0,y0,x1,y1){let t0=0,t1=1;const dx=bx-ax,dy=by
 function polyHitsRect(pts,x0,y0,x1,y1){for(const q of pts)if(q[0]>=x0&&q[0]<=x1&&q[1]>=y0&&q[1]<=y1)return true;
  for(let i=0;i<pts.length;i++){const a=pts[i],b=pts[(i+1)%pts.length];if(segHitsRect(a[0],a[1],b[0],b[1],x0,y0,x1,y1))return true}
  return inPoly(x0,y0,pts)}
+/* Object mode box: every visible object with a polygon (or its centre) inside the box is selected */
+function objBoxSelect(b){const x0=Math.min(b.x0,b.x1),x1=Math.max(b.x0,b.x1),y0=Math.min(b.y0,b.y1),y1=Math.max(b.y0,b.y1),hit=new Set(),inR=q=>q[0]>=x0&&q[0]<=x1&&q[1]>=y0&&q[1]<=y1;
+ (draw.polys||[]).forEach(p=>{if(hit.has(p.oi))return;if(p.pts.some(inR))hit.add(p.oi)});(draw.centers||[]).forEach((c,i)=>{if(c&&inR(c)&&objs[i]&&!objs[i].hid)hit.add(i)});
+ const H=[...hit].filter(i=>objs[i]&&!objs[i].hid),cur=new Set([...osel]);if(objs[sel])cur.add(objs[sel]);
+ if(b.sub)H.forEach(i=>cur.delete(objs[i]));else{if(!b.sh)cur.clear();H.forEach(i=>cur.add(objs[i]))}
+ const L=objs.filter(o=>cur.has(o));camSel=-1;osel.clear();if(!L.length){sel=-1}else{sel=objs.indexOf(L[0]);L.slice(1).forEach(o=>osel.add(o))}selPts.clear();
+ if(H.length)toast(L.length+' object'+(L.length>1?'s':'')+' selected')}
 function boxSelect(){if(!box)return;const x0=Math.min(box.x0,box.x1),x1=Math.max(box.x0,box.x1),y0=Math.min(box.y0,box.y1),y1=Math.max(box.y0,box.y1);
  if(!box.add||(!box.sh&&x1-x0<3&&y1-y0<3)){selPts.clear();selEdges.clear()}if(x1-x0<3&&y1-y0<3)return;
  if(sub==='face'&&draw.hed)hugeFacesInRect(x0,y0,x1,y1,frontOnly).forEach(fi=>{box.sub?selPts.delete(fi):selPts.add(fi)});
@@ -1622,8 +1629,10 @@ function rotPts0(dx,dy){const so=objs[sel],en=editNode(so);if(!en||!en.out||!en.
  (sw?[...sw]:reps.map(i=>[i,1])).forEach(([i,t])=>{const R=Rw(t),P=en.out.v[i],q=mulv(R,[P[0]-c[0],P[1]-c[1],P[2]-c[2]]),o=en.off[i]||(en.off[i]=[0,0,0]);o[0]+=c[0]+q[0]-P[0];o[1]+=c[1]+q[1]-P[1];o[2]+=c[2]+q[2]-P[2]});
  dirtyFrom(so,so.nodes.indexOf(en))}
 /* move / rotate the whole object (object transform sits outside the operator graph) */
+/* every selected object moves together, like Maya */
+function moveSelObjs(w){const L=new Set(osel);if(objs[sel])L.add(objs[sel]);L.forEach(o=>{o.pos=o.pos.map((v,i)=>+(v+w[i]).toFixed(4))})}
 function objXform(dx,dy){const o=objs[sel];if(!o)return;if(xe()==='scale'){scaleObj(axisK===null?3:axisK,Math.max(.2,Math.min(5,1+(dx-dy)/150)));return}
- if(xe()==='move'){const k=(ortho?dist:drag.ot.z+dist)/draw.F,w=axisC(unview(dx*k,-dy*k,0));o.pos=o.pos.map((v,i)=>+(v+w[i]).toFixed(4))}
+ if(xe()==='move'){const k=(ortho?dist:drag.ot.z+dist)/draw.F,w=axisC(unview(dx*k,-dy*k,0));moveSelObjs(w)}
  else{const k=.01;let R;if(axisK!==null){const e=[0,0,0];e[axisK]=1;R=axisRot(e,dx*k)}else R=mulM(axisRot(unview(0,1,0),-dx*k),axisRot(unview(1,0,0),-dy*k));o.rot=eulerOf(mulM(R,rotMat(o.rot)))}}
 /* ---- on-screen gizmo: arrows (move) and rings (rotate) in world X/Y/Z ---- */
 function gizmoHit(x,y){const g=draw.gz;if(!g)return null;if((xe()==='scale'||xe()==='move')&&Math.hypot(x-g.px,y-g.py)<10)return{k:3};
@@ -1638,12 +1647,12 @@ function gizmoDrag(e){const g=draw.gz,h=drag.gz,so=objs[sel];if(!g||!so)return;
  const r=cv.getBoundingClientRect(),x=e.clientX-r.left,y=e.clientY-r.top,A=g.ax[h.k];
  if(xe()==='scale'){const f=scaleFactor(g,h,A,e);if(editMode)scalePts(h.k,f);else scaleObj(h.k,f)}
  else if(xe()==='move'&&h.k===-1){/* plane handle: solve the screen drag as a mix of the two axes */
-  const a=g.ax[h.a],b=g.ax[h.b],ax_=a.tip[0]-g.px,ay=a.tip[1]-g.py,bx=b.tip[0]-g.px,by=b.tip[1]-g.py,det=ax_*by-ay*bx,dx=e.clientX-drag.x,dy=e.clientY-drag.y;if(Math.abs(det)>1){const s1=(dx*by-dy*bx)/det,t1=(ax_*dy-ay*dx)/det,w=[0,0,0];w[h.a]=s1*g.L;w[h.b]=t1*g.L;if(editMode)movePts(w);else so.pos=so.pos.map((v,i)=>+(v+w[i]).toFixed(4))}}
+  const a=g.ax[h.a],b=g.ax[h.b],ax_=a.tip[0]-g.px,ay=a.tip[1]-g.py,bx=b.tip[0]-g.px,by=b.tip[1]-g.py,det=ax_*by-ay*bx,dx=e.clientX-drag.x,dy=e.clientY-drag.y;if(Math.abs(det)>1){const s1=(dx*by-dy*bx)/det,t1=(ax_*dy-ay*dx)/det,w=[0,0,0];w[h.a]=s1*g.L;w[h.b]=t1*g.L;if(editMode)movePts(w);else moveSelObjs(w)}}
  else if(xe()==='move'&&h.k===3){/* centre handle: free move in the screen plane (Shift = along the view direction) */
   const dx=e.clientX-drag.x,dy=e.clientY-drag.y,k=g.zd/draw.F,w=axisC(e.shiftKey?unview(0,0,-dy*k):unview(dx*k,-dy*k,0));
-  if(editMode)movePts(w);else so.pos=so.pos.map((v,i)=>+(v+w[i]).toFixed(4))}
+  if(editMode)movePts(w);else moveSelObjs(w)}
  else if(xe()==='move'){const sx=A.tip[0]-g.px,sy=A.tip[1]-g.py,dl=Math.hypot(sx,sy)||1,pix=((e.clientX-drag.x)*sx+(e.clientY-drag.y)*sy)/dl,amt=pix*g.L/Math.max(dl,10),w=[0,0,0];w[h.k]=amt;
-  if(editMode)movePts(w);else so.pos=so.pos.map((v,i)=>+(v+w[i]).toFixed(4))}
+  if(editMode)movePts(w);else moveSelObjs(w)}
  else{let t=Math.atan2(-(y-g.py),x-g.px)-Math.atan2(-(drag.y-r.top-g.py),drag.x-r.left-g.px);
   if(t>Math.PI)t-=2*Math.PI;if(t<-Math.PI)t+=2*Math.PI;t*=A.ez>0?1:-1;
   const sv=axisK;axisK=h.k;if(editMode)rotPts(t/.01,0);else objXform(t/.01,0);axisK=sv}
@@ -3466,7 +3475,9 @@ if(e.button===2){if(e.altKey){drag.zm=true;e.preventDefault();return}drag.rc=tru
   if(h&&tw){drag.tw=h;if(twSrc==null){twSrc=h.i;selPts.clear();selPts.add(h.i);draw()}else if(h.i!==twSrc){twDo(twSrc,h.i);drag.tw=null;drag.moved=99}}
   else if(h){if(ptHist[ptHist.length-1]!==h.i){ptHist.push(h.i);if(ptHist.length>4)ptHist.shift()}if(e.ctrlKey||e.metaKey){selPts.delete(h.i)}else if(e.shiftKey){selPts.add(h.i)}else if(add(e)){selPts.has(h.i)?selPts.delete(h.i):selPts.add(h.i)}else if(!selPts.has(h.i)){selPts.clear();selPts.add(h.i)}drag.pt=h;draw()}
   else startBox(e,x,y)}
- else if(!editMode&&draw.polys&&objs[sel]){const x=e.clientX-r0.left,y=e.clientY-r0.top;for(let k=draw.polys.length-1;k>=0;k--){const p=draw.polys[k];if(p.oi===sel&&inPoly(x,y,p.pts)){drag.ot={z:p.z};break}}if(!drag.ot&&draw.heavy&&draw.heavy.includes(sel)){const hh=heavyHit(x,y);if(hh&&hh.oi===sel)drag.ot={z:hh.z}}}});
+ else if(!editMode&&draw.polys){const x=e.clientX-r0.left,y=e.clientY-r0.top;if(objs[sel]&&xf!=='select')for(let k=draw.polys.length-1;k>=0;k--){const p=draw.polys[k];if(inPoly(x,y,p.pts)){if(p.oi===sel||osel.has(objs[p.oi]))drag.ot={z:p.z};break}}if(!drag.ot&&objs[sel]&&xf!=='select'&&draw.heavy&&draw.heavy.includes(sel)){const hh=heavyHit(x,y);if(hh&&hh.oi===sel)drag.ot={z:hh.z}}
+  /* not on the selected object: drag a box to select every object it touches (Shift adds, Ctrl removes) */
+  if(!drag.ot&&e.button===0){startBox(e,x,y);box.obj=true}}});
 cv.addEventListener('pointermove',e=>{if(!drag)return;const dx=e.clientX-drag.x,dy=e.clientY-drag.y;drag.moved+=Math.abs(dx)+Math.abs(dy);
  if(drag.hl||drag.sbx){const r=cv.getBoundingClientRect();box.x1=e.clientX-r.left;box.y1=e.clientY-r.top;draw();return}
  if(drag.dw){dwMove(e);return}
@@ -3520,7 +3531,8 @@ cv.addEventListener('pointerup',e=>{if(drag&&drag.sbx){const b=box;box=null;drag
  if(drag&&drag.av){const d=drag.av;if(drag.moved<5)avInsert(d.h,d.x,d.y);drag=null;all();return}
  if(drag&&drag.tw&&drag.moved>=5&&twSrc!=null){const r=cv.getBoundingClientRect(),x=e.clientX-r.left,y=e.clientY-r.top;let h=null;if(draw.hed&&draw.hed.pb){h=hugePick(x,y);if(h&&h.i===twSrc)h=null}else for(const q of draw.pts||[])if(Math.hypot(q.x-x,q.y-y)<11&&q.i!==twSrc&&(!h||q.z<h.z))h=q;if(h)twDo(twSrc,h.i);drag=null;all();return}
  if(drag&&drag.tw){drag=null;draw();return}
- if(drag&&drag.box){boxSelect();box=null;drag=null;all();return}
+ if(drag&&drag.box&&box&&box.obj){const b=box;box=null;if(drag.moved<5){drag.box=false;draw()}else{objBoxSelect(b);drag=null;all();return}}
+ else if(drag&&drag.box){boxSelect();box=null;drag=null;all();return}
  if(drag&&(drag.pt||drag.ot||drag.gz))panels();
  if(drag&&drag.clr){if(drag.moved<5&&!e.shiftKey){selPts.clear();selEdges.clear();all()}}else if(drag&&!editMode&&drag.moved<5&&draw.centers){const r=cv.getBoundingClientRect(),x=e.clientX-r.left,y=e.clientY-r.top;
   const ch=(draw.camPts||[]).find(c=>Math.hypot(c.x-x,c.y-y)<14);if(ch){camSel=ch.i;panels();draw();drag=null;return}
