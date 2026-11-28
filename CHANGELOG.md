@@ -4,6 +4,9 @@ Newest first. Version numbers are the published build numbers of NOVA 3D (former
 
 > Versions 1–67 were built over many early steps and per-version numbers were not recorded, so they are grouped at the bottom. Every version from v68 on is listed individually.
 
+## v193 — Symmetry Object X/Y/Z works after deleting half and mirroring
+- Fixed: if the half you deleted was not cut exactly on the centre line (for example a box selection that took a column more or less), Mirror rebuilt the model around the cut instead of the object's centre, and **Symmetry: Object X** found no matching points while *View left/right* still worked. Choosing Object X, Y or Z now first moves the object's centre onto the model's own middle line (the model does not move on screen), exactly as View left/right already did, so both work.
+
 ## v192 — Mirror rebuilds a half model around its middle
 - Fixed: after deleting half of a model and pressing **Mirror**, the copy was placed on the wrong side (against the far edge), so the model's middle was no longer on the X centre line and **Symmetry: Object X** found nothing to mirror. Mirror now puts the copy on the open, cut side, so the model is whole again around its middle and Object X symmetry works straight away. Models without an open edge mirror as before.
 
