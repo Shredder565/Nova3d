@@ -1737,6 +1737,16 @@ function combineObjs(){const set=new Set(osel);if(objs[sel])set.add(objs[sel]);c
  sel=objs.indexOf(n);osel.clear();centerPivotOf(n);all();commit();toast('Combined '+L.length+' objects into "'+n.name+'". Separate splits them again.')}
 function centerPivotOf(o){const m=evaluate(o),used=new Set(m.f.flat());if(!used.size)return;const mn=[1e9,1e9,1e9],mx=[-1e9,-1e9,-1e9];used.forEach(i=>{for(let k=0;k<3;k++){mn[k]=Math.min(mn[k],m.v[i][k]);mx[k]=Math.max(mx[k],m.v[i][k])}});const c=mn.map((v,k)=>(v+mx[k])/2);
  o.nodes[0].mesh={v:o.nodes[0].mesh.v.map(v=>[v[0]-c[0],v[1]-c[1],v[2]-c[2]]),f:o.nodes[0].mesh.f};dirtyFrom(o,0);o.pos=c}
+/* Round: splits the faces (divisions) and pulls every point toward a sphere around the model's centre; amount 1 turns a cube into a sphere, 0.5 a rounded box */
+FOPS.Round={p:{amount:[1,0,1,.05],divisions:[3,0,5,1]},fn:(m,p)=>{if(!m.f.length)return m;let cur=m,src=m.f.map((_,i)=>i);const d=Math.max(0,Math.min(5,Math.round(p.divisions)));
+ for(let k=0;k<d;k++){if(cur.f.length*4>400000)break;const r=catmullClark(cur,0,true);src=r.src.map(i=>src[i]);cur=r}
+ const used=new Set(cur.f.flat()),mn=[1e9,1e9,1e9],mx=[-1e9,-1e9,-1e9];used.forEach(i=>{for(let k=0;k<3;k++){mn[k]=Math.min(mn[k],cur.v[i][k]);mx[k]=Math.max(mx[k],cur.v[i][k])}});const c=mn.map((v,k)=>(v+mx[k])/2);
+ let R=0,n=0;used.forEach(i=>{R+=Math.hypot(cur.v[i][0]-c[0],cur.v[i][1]-c[1],cur.v[i][2]-c[2]);n++});R/=n||1;const t=Math.max(0,Math.min(1,p.amount));
+ const V=cur.v.map(v=>{const d0=[v[0]-c[0],v[1]-c[1],v[2]-c[2]],L=Math.hypot(...d0);if(!L)return v.slice();return[0,1,2].map(k=>v[k]+(c[k]+d0[k]/L*R-v[k])*t)});
+ return{v:V,f:cur.f,src}}};
+TY.Round=FOPS.Round;
+function roundObj(){const o=objs[sel];if(!o){toast('Select an object first');return}const m=evaluate(o);if(m.f.length*Math.pow(4,3)>400000){toast('This model is too dense to round');return}
+ const nn=mk('Round');insertNodeKeepColors(o,nn);selPts.clear();selEdges.clear();ringPrev=null;all();commit();toast('Rounded into a sphere. In the Round card: amount 1 = full sphere, 0.5 = rounded box, 0 = original shape; divisions sets how smooth it is. Delete the card to undo.')}
 TY.Bridge=FOPS.Bridge;TY.Collapse=FOPS.Collapse;
 function bridgeSel(){const o=objs[sel];if(!o||!editMode||sub!=='face'||selPts.size!==2){toast('Select exactly two faces (F11) with the same number of corners, then Bridge');return}const m=evaluate(o),fl=[...selPts];
  if(m.f[fl[0]].length!==m.f[fl[1]].length){toast('The two faces have a different number of corners ('+m.f[fl[0]].length+' and '+m.f[fl[1]].length+'), so they cannot be bridged');return}
@@ -1899,6 +1909,7 @@ const CMDS=[
  {g:'Render',l:'Ray trace 2K (CPU)',f:()=>renderRT()},
  {g:'Render',l:'Show last render',f:()=>showRender()},
  {g:'Modeling',l:'Fill hole',en:need,f:fillHole},
+ {g:'Modeling',l:'Round (cube to sphere)',en:need,f:roundObj},
  {g:'Modeling',l:'Combine',en:()=>osel.size>0,f:combineObjs},
  {g:'Modeling',l:'Separate',en:need,f:separateObj},
  {g:'Modeling',l:'Extract',en:()=>inEd()&&sub==='face'&&selPts.size>0,f:()=>extractFaces(false)},
@@ -2694,7 +2705,7 @@ const SHELVES=[
  {n:'Basic Modeling Tools',rows:[
   {n:'Primitives',items:[{c:'Add cube',t:'Cube',ic:'cube'},{c:'Add sphere',t:'Sphere',ic:'sphere'},{c:'Add torus',t:'Torus',ic:'torus'},{c:'Add trapezoid',t:'Trapezoid',ic:'trap'},{c:'Add teapot',t:'Teapot',ic:'teapot'},{c:'Add tree',t:'Tree',ic:'tree'}]},
   {n:'Transform and scene',items:[{gl:'Tools'},{c:'Select'},{c:'Move',ic:'move'},{c:'Rotate',ic:'rotate'},{c:'Scale',ic:'scale'},{c:'Toggle grid',t:'Grid',ic:'grid'},{sp:1},{gl:'Component'},{c:'Object mode',t:'Object'},{c:'Points',ic:'points'},{c:'Edges',ic:'edges'},{c:'Faces',ic:'faces'},{c:'Clusters',t:'Clusters'},{c:'Symmetrize',t:'Symmetry'},{sp:1},{gl:'Pivot'},{c:'Center pivot',t:'Center Pivot'},{c:'Freeze (delete history)',t:'Freeze'},{c:'Center to object',t:'Center to Object'},{sp:1},{gl:'Axis lock'},{c:'Lock to X axis',t:'X',ic:'axX'},{c:'Lock to Y axis',t:'Y',ic:'axY'},{c:'Lock to Z axis',t:'Z',ic:'axZ'},{c:'World (free move)',t:'World',ic:'world'},{sp:1},{gl:'Scene'},{c:'Hide selected',t:'Hide'},{c:'Unhide all',t:'Unhide'},{c:'Remove object',t:'Remove object'},{c:'Clear selection',t:'Clear'},{c:'Undo'},{c:'Redo'},{c:'Save file',t:'Save'},{c:'Open file',t:'Load'}]},
-  {n:'Modeling tools',items:[{gl:'Mesh'},{c:'Combine'},{c:'Merge',t:'Merge'},{c:'Separate'},{c:'Extract'},{c:'Mirror'},{c:'Smooth surface',t:'Smooth'},{c:'Freeze (delete history)',t:'Freeze',ic:'freeze'},{sp:1},{gl:'Components'},{c:'Extrude faces',t:'Extrude'},{c:'Bridge'},{c:'Bevel faces or edges',t:'Bevel'},{c:'Merge points',t:'Merge Points'},{c:'Merge to center',t:'Merge To Center'},{c:'Collapse'},{c:'Duplicate face',t:'Duplicate Face'},{c:'Fill hole',t:'Fill Hole'},{sp:1},{gl:'Tools'},{c:'Multi-Cut'},{c:'Knife Area',t:'Knife Area',ic:'karea'},{c:'Group weld',t:'Group Weld',ic:'bullseye'},{c:'Insert edge loop',t:'Insert Edge Loop'},{c:'Target weld',t:'Target Weld'},{c:'Free Draw',t:'Free Draw',ic:'fdraw'},{sp:1},{gl:'Soft select'},{c:'Soft select',t:'Soft Select',ic:'soft'},{soft:'mode'},{soft:'curve'},{soft:'r'}]},
+  {n:'Modeling tools',items:[{gl:'Mesh'},{c:'Combine'},{c:'Merge',t:'Merge'},{c:'Separate'},{c:'Extract'},{c:'Mirror'},{c:'Smooth surface',t:'Smooth'},{c:'Round (cube to sphere)',t:'Round'},{c:'Freeze (delete history)',t:'Freeze',ic:'freeze'},{sp:1},{gl:'Components'},{c:'Extrude faces',t:'Extrude'},{c:'Bridge'},{c:'Bevel faces or edges',t:'Bevel'},{c:'Merge points',t:'Merge Points'},{c:'Merge to center',t:'Merge To Center'},{c:'Collapse'},{c:'Duplicate face',t:'Duplicate Face'},{c:'Fill hole',t:'Fill Hole'},{sp:1},{gl:'Tools'},{c:'Multi-Cut'},{c:'Knife Area',t:'Knife Area',ic:'karea'},{c:'Group weld',t:'Group Weld',ic:'bullseye'},{c:'Insert edge loop',t:'Insert Edge Loop'},{c:'Target weld',t:'Target Weld'},{c:'Free Draw',t:'Free Draw',ic:'fdraw'},{sp:1},{gl:'Soft select'},{c:'Soft select',t:'Soft Select',ic:'soft'},{soft:'mode'},{soft:'curve'},{soft:'r'}]},
   {n:'Rotoscope',items:[{c:'Rotoscope: load image',t:'Load image…'},{c:'Rotoscope: move and scale',t:'Move / Scale'},{c:'Rotoscope: show or hide',t:'Visible'},{c:'Rotoscope: remove image',t:'Remove'},{roto:'op'},{roto:'size'},{roto:'x'},{roto:'y'},{rname:1}]},
   {n:'File',items:[{c:'New file',t:'New File'},{c:'Open file',t:'Open File'},{c:'Save file',t:'Save'},{c:'Save file as',t:'Save As'},{fname:1},{c:'Export file',t:'Export File'},{c:'Create new model',t:'Create New Model'},{sp:1},{c:'Record video (MP4)',t:'Record',id:'rec'},{sp:1},{c:'Object wireframe',t:'Wireframe'},{c:'Object shaded',t:'Shaded'},{c:'Object wireframe + shaded',t:'Wireframe + Shaded'},{vp:'op'}]}]},
  {n:'Coloring and Rendering',rows:[
