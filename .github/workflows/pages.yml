@@ -1,9 +1,10 @@
-# Publishes the website (index.html, the in-browser app and its images) to GitHub Pages on every push to main.
-# One-time setup: repository Settings > Pages > Build and deployment > Source: "GitHub Actions".
+# Publishes the website (index.html, the in-browser app and its images) to GitHub Pages.
+# Runs only when started by hand (Actions tab > Pages > Run workflow), because Pages is not switched on for this repository yet
+# and an automatic run on every push failed and sent an e-mail each time.
+# To use it: repository Settings > Pages > Build and deployment > Source: "GitHub Actions", then run it from the Actions tab
+# (to run it on every push again, add  push: branches: [main]  under on:).
 name: Pages
 on:
-  push:
-    branches: [main]
   workflow_dispatch:
 permissions:
   contents: read
