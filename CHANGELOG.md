@@ -4,6 +4,13 @@ Newest first. Version numbers are the published build numbers of NOVA 3D (former
 
 > Versions 1–67 were built over many early steps and per-version numbers were not recorded, so they are grouped at the bottom. Every version from v68 on is listed individually.
 
+## v191 — Symmetry menu like Maya
+- **New Symmetry menu in the top bar** (next to Record), with Maya's choices: **Off, Object X, Object Y, Object Z, World X, World Y, World Z, Topology** (plus NOVA's **View left/right**, the Symmetrize button's mode).
+  - *Object X/Y/Z:* edits are mirrored across the object's own centre plane.
+  - *World X/Y/Z:* mirrored across the scene's centre plane, wherever the object sits (also when it is turned by 90° steps).
+  - *Topology:* NOVA finds the axis and middle plane the model itself is symmetric about (for example after Mirror) and mirrors across that.
+- Picking a mode switches to Points mode; every point you move, rotate, scale, sculpt, cut or weld is copied to the other side. **"Symmetry: Object X"** (or the current mode) is shown at the top of the viewport while it is on, as in Maya.
+
 ## v190 — Round: turn a cube into a sphere
 - **New Round button** (Modeling tools, next to Smooth). It splits the faces and pulls the model into a sphere: a cube becomes a round ball in one click. In the Round card, *amount* 1 = full sphere, 0.5 = rounded box, 0 = the original shape; *divisions* (0–5) sets how smooth the ball is. Painted colours are kept. Delete the card or press Ctrl+Z to undo.
 
